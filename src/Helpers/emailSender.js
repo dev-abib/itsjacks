@@ -1,12 +1,8 @@
 const nodemailer = require("nodemailer");
+const { PasswordResetTemplate } = require("./email.template");
 
-const mailSender = async ({
-  type, 
-  name,
-  emailAdress,
-  subject,
- 
-}) => {
+
+const mailSender = async ({ type, name, emailAdress, subject, otp }) => {
   try {
     const transporter = nodemailer.createTransport({
       host: process.env.MAIL_HOST,
@@ -18,7 +14,11 @@ const mailSender = async ({
       },
     });
 
-    let html=``
+    let html;
+
+    if (type === "otp") {
+       html = PasswordResetTemplate(name, otp);
+    }
 
     const mailOptions = {
       from: `"${process.env.MAIL_FROM_NAME}" <${process.env.MAIL_FROM_ADDRESS}>`,

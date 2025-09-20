@@ -1,15 +1,11 @@
-// External dependencies
 const jwt = require("jsonwebtoken");
-// Internal dependencies
-const { apiError } = require("../utils/apiError.js");
-const { asyncHandler } = require("../utils/asyncaHandler.js");
-
-// auth guard mechanism
+const { apiError } = require("../Utils/api.error.js");
+const { asyncHandler } = require("../Utils/asyncHandler.js");
 
 const authguard = asyncHandler(async (req, res, next) => {
   const { cookie, authorization } = req.headers;
-  const removeBearer = authorization?.split("Bearer")[1];
-  const token = removeBearer?.split("@")[1];
+  
+  const token = authorization?.split("Bearer ")[1];
   const cookiesToken = cookie
     ?.split("; ")
     .find((c) => c.startsWith("access_token="))
@@ -21,16 +17,20 @@ const authguard = asyncHandler(async (req, res, next) => {
     );
   }
 
-  if (token) {
-    const decoded = jwt.verify(token, process.env.SECRET_KEY);
-    if (decoded) {
-      next();
+  try {
+    if (token) {
+      const decoded = jwt.verify(token, process.env.SECRET_KEY);
+      if (decoded) return next();
     }
-  } else if (cookiesToken) {
-    const decoded = jwt.verify(cookiesToken, process.env.SECRET_KEY);
-    if (decoded) {
-      next();
+
+    if (cookiesToken) {
+      const decoded = jwt.verify(cookiesToken, process.env.SECRET_KEY);
+      if (decoded) return next();
     }
+
+    return next(new apiError(401, "Unauthorized. Invalid token.", null, false));
+  } catch (error) {
+    return next(new apiError(401, "Unauthorized. Invalid token.", null, false));
   }
 });
 
