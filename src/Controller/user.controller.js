@@ -323,6 +323,40 @@ const verifyOtp = asyncHandler(async (req, res, next) => {
   );
 });
 
+// reset passwrod done
+const resetPassword = asyncHandler(async (req, res, next) => {
+  const { password, confirmPassword } = req.body;
+
+  const decodedData = await decodeSessionToken(req);
+
+  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
+
+  if (!password || !confirmPassword)
+    return next(
+      new apiError(400, "Password and confirmation are required", null, false)
+    );
+
+  if (!passwordChecker(password) || !passwordChecker(confirmPassword))
+    return next(new apiError(400, "Invalid password format", null, false));
+
+  if (password !== confirmPassword)
+    return next(new apiError(400, "Passwords do not match", null, false));
+
+  const user = await userModel.findOne({ email: decodedData.userData.email });
+
+  if (!user) return next(new apiError(404, "User not found", null, false));
+
+  user.password = await hashUserPassword(password);
+  user.resetToken = null;
+  await user.save();
+
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Password reset successfully", null, true, null));
+});
+
+
+
 module.exports = {
   registerUserController,
   loginUserController,
