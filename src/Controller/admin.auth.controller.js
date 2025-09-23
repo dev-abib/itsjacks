@@ -67,6 +67,74 @@ const loginAdminController = asyncHandler(async (req, res, next) => {
     );
 });
 
+// get all available user controller
+
+const getAllUserData = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData) {
+    return next(new apiError(401, "Unauthorized", null, false));
+  }
+
+  const {
+    page = 1,
+    search = "",
+    sortBy = "createdAt",
+    sortOrder = "desc",
+  } = req.query;
+  const ITEMS_PER_PAGE = 10;
+  const skip = (Number(page) - 1) * ITEMS_PER_PAGE;
+
+  // Build search query
+  const searchQuery = {
+    $or: [
+      { name: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
+    ],
+  };
+
+  // Build sort options
+  const validSortFields = ["name", "email", "createdAt", "updatedAt"];
+  const sortField = validSortFields.includes(sortBy) ? sortBy : "createdAt";
+  const sortDirection = sortOrder === "asc" ? 1 : -1;
+  const sortOptions = { [sortField]: sortDirection };
+
+  const totalUsersLength = await userModel.find();
+  const total = await userModel.countDocuments(searchQuery);
+  const users = await userModel
+    .find(searchQuery)
+    .sort(sortOptions)
+    .skip(skip)
+    .limit(ITEMS_PER_PAGE);
+
+  if (!users.length) {
+    return next(new apiError(404, "No users found", null, false));
+  }
+
+  const safeUsers = users.map((user) => {
+    const { password, resetToken, refreshToken, otp, ...rest } =
+      user.toObject();
+    return rest;
+  });
+
+  const allUsersLength = totalUsersLength.length;
+
+  return res.status(200).json(
+    new apiSuccess(
+      200,
+      "Successfully retrieved users",
+      {
+        users: safeUsers,
+        allUsersLength: allUsersLength,
+        total,
+        page: Number(page),
+        totalPages: Math.ceil(total / ITEMS_PER_PAGE),
+      },
+      true,
+      null
+    )
+  );
+});
+
 module.exports = {
   loginAdminController,
 };
