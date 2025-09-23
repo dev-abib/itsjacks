@@ -21,43 +21,43 @@ const imageFilter = (req, file, cb) => {
 /**
  * Filter for video files (mp4, webm, avi, mov)
  */
-const videoUploadPath = path.join(__dirname, "uploads/videos");
+// const videoUploadPath = path.join(__dirname, "uploads/videos");
 
-// Ensure the folder exists
-if (!fs.existsSync(videoUploadPath)) {
-  fs.mkdirSync(videoUploadPath, { recursive: true });
-}
+// // Ensure the folder exists
+// if (!fs.existsSync(videoUploadPath)) {
+//   fs.mkdirSync(videoUploadPath, { recursive: true });
+// }
 
 /**
  * Filter for video files (mp4, webm, avi, mov)
  */
-const videoFilter = (req, file, cb) => {
-  const allowedTypes = /mp4|webm|avi|mov/;
-  const mimetype = allowedTypes.test(file.mimetype.toLowerCase());
-  const extname = allowedTypes.test(
-    file.originalname.split(".").pop().toLowerCase()
-  );
+// const videoFilter = (req, file, cb) => {
+//   const allowedTypes = /mp4|webm|avi|mov/;
+//   const mimetype = allowedTypes.test(file.mimetype.toLowerCase());
+//   const extname = allowedTypes.test(
+//     file.originalname.split(".").pop().toLowerCase()
+//   );
 
-  if (mimetype && extname) {
-    return cb(null, true);
-  }
-  cb(new Error("Only MP4, WebM, AVI, and MOV video files are allowed!"));
-};
+//   if (mimetype && extname) {
+//     return cb(null, true);
+//   }
+//   cb(new Error("Only MP4, WebM, AVI, and MOV video files are allowed!"));
+// };
 
 /**
  * Upload middleware for videos (max 50MB, disk storage)
  */
-const uploadVideo = multer({
-  storage: multer.diskStorage({
-    destination: (req, file, cb) => cb(null, videoUploadPath),
-    filename: (req, file, cb) => {
-      const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-      cb(null, uniqueSuffix + path.extname(file.originalname));
-    },
-  }),
-  limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
-  fileFilter: videoFilter,
-});
+// const uploadVideo = multer({
+//   storage: multer.diskStorage({
+//     destination: (req, file, cb) => cb(null, videoUploadPath),
+//     filename: (req, file, cb) => {
+//       const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+//       cb(null, uniqueSuffix + path.extname(file.originalname));
+//     },
+//   }),
+//   limits: { fileSize: 50 * 1024 * 1024 }, // 50 MB
+//   fileFilter: videoFilter,
+// });
 
 
 /**
@@ -121,7 +121,7 @@ const uploadMixed = multer({
 
 module.exports = {
   uploadImages,
-  uploadVideo,
+  // uploadVideo,
   uploadInvoice,
   uploadMixed,
 };
