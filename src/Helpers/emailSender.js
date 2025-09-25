@@ -1,7 +1,6 @@
 const nodemailer = require("nodemailer");
 const { PasswordResetTemplate } = require("./email.template");
 
-
 const mailSender = async ({ type, name, emailAdress, subject, otp }) => {
   try {
     const transporter = nodemailer.createTransport({
@@ -17,7 +16,7 @@ const mailSender = async ({ type, name, emailAdress, subject, otp }) => {
     let html;
 
     if (type === "otp") {
-       html = PasswordResetTemplate(name, otp);
+      html = PasswordResetTemplate(name, otp, process.env.MAIL_FROM_ADDRESS);
     }
 
     const mailOptions = {
@@ -30,7 +29,10 @@ const mailSender = async ({ type, name, emailAdress, subject, otp }) => {
     const info = await transporter.sendMail(mailOptions);
     return info;
   } catch (error) {
-    console.error("Email sending failed:", error.code || error.message);
+    console.error(
+      "Email sending failed:",
+      error || error.code || error.message
+    );
     throw error;
   }
 };

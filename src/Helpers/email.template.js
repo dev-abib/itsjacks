@@ -1,4 +1,4 @@
-const PasswordResetTemplate = (name, otp) => {
+const PasswordResetTemplate = (name, otp, email) => {
   return `
   <html lang="en">
     <head>
@@ -71,7 +71,7 @@ const PasswordResetTemplate = (name, otp) => {
 
         <p>This OTP is valid for 2 minutes. If you did not request this, please ignore this email.</p>
 
-        <p class="footer">If you did not request a password reset, please <a href="<%= contactSupportLink %>">contact support</a>.</p>
+       <p class="footer">This email was sent to: <strong>${email}</strong>. If you did not request a password reset, please <a href="<%= contactSupportLink %>">contact support</a>.</p>
       </div>
 
     </body>

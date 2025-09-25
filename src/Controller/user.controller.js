@@ -194,7 +194,6 @@ const changePassword = asyncHandler(async (req, res, next) => {
   if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
 
   console.log(decodedData);
-  
 
   if (!prevPassword)
     return next(
@@ -215,7 +214,6 @@ const changePassword = asyncHandler(async (req, res, next) => {
 
   const isExisteduser = await user.findById(decodedData.userData.userId);
   if (!user) return next(new apiError(404, "User not found", null, false));
-  
 
   const isVerifiedPassword = await verifyPassword(
     prevPassword,
@@ -245,7 +243,7 @@ const verifyEmail = asyncHandler(async (req, res, next) => {
   if (!emailChecker(email))
     return next(new apiError(400, "Invalid Email format", null, false));
 
-  const isExisteduser = await user.findOne({ email });
+  const isExisteduser = await user.findOne({ email: email });
 
   if (!isExisteduser)
     return next(new apiError(404, "User not found", null, false));
@@ -259,7 +257,7 @@ const verifyEmail = asyncHandler(async (req, res, next) => {
   try {
     await mailSender({
       type: "otp",
-      name: user.name || "User",
+      name: isExisteduser.fullName || "User",
       emailAdress: email,
       subject: "Your One-Time Password (OTP)",
       otp,
@@ -287,7 +285,7 @@ const verifyOtp = asyncHandler(async (req, res, next) => {
   if (!emailChecker(email))
     return next(new apiError(400, "Invalid Email format", null, false));
 
-  const isExisteduser = await userModel.findOne({ email });
+  const isExisteduser = await user.findOne({ email });
 
   if (!isExisteduser)
     return next(new apiError(404, "User not found", null, false));
@@ -299,9 +297,8 @@ const verifyOtp = asyncHandler(async (req, res, next) => {
     return next(new apiError(400, "OTP expired", null, false));
 
   const token = await createSessionToken({
-    name: isExisteduser.name,
+    name: isExisteduser.fullName,
     email: isExisteduser.email,
-    telePhoneNumber: isExisteduser.telePhoneNumber,
   });
 
   isExisteduser.resetToken = token;
@@ -342,27 +339,25 @@ const resetPassword = asyncHandler(async (req, res, next) => {
   if (password !== confirmPassword)
     return next(new apiError(400, "Passwords do not match", null, false));
 
-  const user = await userModel.findOne({ email: decodedData.userData.email });
+  const isExisteduser = await user.findOne({ email: decodedData.userData.email });
 
   if (!user) return next(new apiError(404, "User not found", null, false));
 
-  user.password = await hashUserPassword(password);
-  user.resetToken = null;
-  await user.save();
+  isExisteduser.password = await hashUserPassword(password);
+  isExisteduser.resetToken = null;
+  await isExisteduser.save();
 
   return res
     .status(200)
     .json(new apiSuccess(200, "Password reset successfully", null, true, null));
 });
 
-
-
-
-
 module.exports = {
   registerUserController,
   loginUserController,
   getUserData,
   changePassword,
-  verifyEmail
+  verifyEmail,
+  verifyOtp,
+  resetPassword,
 };

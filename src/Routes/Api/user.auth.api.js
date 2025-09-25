@@ -6,6 +6,8 @@ const {
   getUserData,
   changePassword,
   verifyEmail,
+  verifyOtp,
+  resetPassword,
 } = require("../../Controller/user.controller");
 const { uploadImages } = require("../../middleware/multer.middleware");
 const { authguard } = require("../../middleware/authGuard");
@@ -29,6 +31,11 @@ router.route("/get-me").get(authguard, getUserData);
 router.route("/change-password").put(authguard, changePassword);
 
 // verify email
-router.route("/verify-email").post(verifyEmail)
+router.route("/verify-email").post(verifyEmail);
+
+// verify email
+router.route("/verify-otp").post(verifyOtp);
+
+router.route("/reset-pass").post(authguard, resetPassword);
 
 module.exports = router;
