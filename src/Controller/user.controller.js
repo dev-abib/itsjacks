@@ -26,7 +26,7 @@ const registerUserController = asyncHandler(async (req, res, next) => {
   const profilePicture = req.file;
 
   if (!profilePicture)
-    return next(new apiError(400, "Government ID is required"));
+    return next(new apiError(400, "Profile picture is required"));
 
   if (!email) return next(new apiError(400, "Email field is required"));
 
@@ -52,7 +52,6 @@ const registerUserController = asyncHandler(async (req, res, next) => {
 
   const hashedPassword = await hashUserPassword(password);
 
-  // ✅ Upload government ID
   const uploadResult = await uploadCloudinary(
     profilePicture.buffer,
     "profilePic",
@@ -63,7 +62,7 @@ const registerUserController = asyncHandler(async (req, res, next) => {
   );
 
   if (!uploadResult?.secure_url)
-    return next(new apiError(500, "Failed to upload Government ID"));
+    return next(new apiError(500, "Failed to  upload profile picture "));
 
   let savedUser = null;
 
@@ -339,7 +338,9 @@ const resetPassword = asyncHandler(async (req, res, next) => {
   if (password !== confirmPassword)
     return next(new apiError(400, "Passwords do not match", null, false));
 
-  const isExisteduser = await user.findOne({ email: decodedData.userData.email });
+  const isExisteduser = await user.findOne({
+    email: decodedData.userData.email,
+  });
 
   if (!user) return next(new apiError(404, "User not found", null, false));
 
