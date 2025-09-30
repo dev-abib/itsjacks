@@ -1,6 +1,7 @@
 const bcrypt = require("bcrypt");
 const { Admin } = require("../Schema/admin.schema");
 
+
 const seedDefaultAdmin = async () => {
   try {
     const existingAdmin = await Admin.findOne();

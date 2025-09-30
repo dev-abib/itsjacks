@@ -15,7 +15,7 @@ const userSchema = new Schema(
     role: {
       type: String,
       required: [true, "user role is required"],
-      enum: ["user", "moderator"],
+      enum: ["student", "creator"],
       message: "Role must be one of the following:  user, or moderator",
     },
     password: {

@@ -3,8 +3,10 @@ const {
   createAdminSessionToken,
   verifyPassword,
   verifyAdminSessionToken,
+  decodeSessionToken,
 } = require("../Helpers/helper");
 const { Admin } = require("../Schema/admin.schema");
+const { user } = require("../Schema/user.schema");
 
 const { apiError } = require("../Utils/api.error");
 const { apiSuccess } = require("../Utils/api.success");
@@ -87,20 +89,20 @@ const getAllUserData = asyncHandler(async (req, res, next) => {
   // Build search query
   const searchQuery = {
     $or: [
-      { name: { $regex: search, $options: "i" } },
+      { fullName: { $regex: search, $options: "i" } },
       { email: { $regex: search, $options: "i" } },
     ],
   };
 
   // Build sort options
-  const validSortFields = ["name", "email", "createdAt", "updatedAt"];
+  const validSortFields = ["fullName", "email", "createdAt", "updatedAt"];
   const sortField = validSortFields.includes(sortBy) ? sortBy : "createdAt";
   const sortDirection = sortOrder === "asc" ? 1 : -1;
   const sortOptions = { [sortField]: sortDirection };
 
-  const totalUsersLength = await userModel.find();
-  const total = await userModel.countDocuments(searchQuery);
-  const users = await userModel
+  const totalUsersLength = await user.find();
+  const total = await user.countDocuments(searchQuery);
+  const users = await user
     .find(searchQuery)
     .sort(sortOptions)
     .skip(skip)
@@ -135,6 +137,41 @@ const getAllUserData = asyncHandler(async (req, res, next) => {
   );
 });
 
+// verify admin
+const verifyAdmin = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+
+  if (!decodedData)
+    return next(new apiError(401, "Unauthorized request", null, false));
+
+  const isExistedAdmin = await Admin.findById(decodedData.adminData._id);
+
+  if (!isExistedAdmin) {
+    return next(new apiError(401, "Unauthorized request", null, false));
+  }
+
+  const responsePayload = {
+    name: isExistedAdmin.name,
+    email: isExistedAdmin.email,
+    adminId: isExistedAdmin._id,
+    telePhoneNumber: isExistedAdmin.telePhoneNumber,
+    profilePic: isExistedAdmin.profilePic,
+    _id: isExistedAdmin._id,
+  };
+
+  return res.json(
+    new apiSuccess(
+      200,
+      "successfully get admin data",
+      responsePayload,
+      true,
+      null
+    )
+  );
+});
+
 module.exports = {
   loginAdminController,
+  verifyAdmin,
+  getAllUserData,
 };
