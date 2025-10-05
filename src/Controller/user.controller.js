@@ -8,7 +8,10 @@ const {
   otpGenerator,
   decodeSessionToken,
 } = require("../Helpers/helper");
-const { uploadCloudinary } = require("../Helpers/uploadCloudinary");
+const {
+  uploadCloudinary,
+  deleteCloudinaryAsset,
+} = require("../Helpers/uploadCloudinary");
 const { Admin } = require("../Schema/admin.schema");
 const { user } = require("../Schema/user.schema");
 
@@ -52,17 +55,16 @@ const registerUserController = asyncHandler(async (req, res, next) => {
 
   const hashedPassword = await hashUserPassword(password);
 
-  const uploadResult = await uploadCloudinary(
-    profilePicture.buffer,
-    "profilePic",
-    {
-      mimetype: profilePicture.mimetype,
-      originalname: profilePicture.originalname,
-    }
-  );
+  let uploadResult;
+  try {
+    uploadResult = await uploadCloudinary(profilePicture.buffer, "profilePic");
+  } catch (error) {
+    console.error("Cloudinary upload error:", error);
+    return next(new apiError(500, "Failed to upload profile picture"));
+  }
 
   if (!uploadResult?.secure_url)
-    return next(new apiError(500, "Failed to  upload profile picture "));
+    return next(new apiError(500, "Cloudinary upload failed"));
 
   let savedUser = null;
 
@@ -191,8 +193,6 @@ const changePassword = asyncHandler(async (req, res, next) => {
   const decodedData = await decodeSessionToken(req);
 
   if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
-
-  console.log(decodedData);
 
   if (!prevPassword)
     return next(
@@ -353,6 +353,126 @@ const resetPassword = asyncHandler(async (req, res, next) => {
     .json(new apiSuccess(200, "Password reset successfully", null, true, null));
 });
 
+const updateUser = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
+
+  const isExisteduser = await user.findById(decodedData?.userData?.userId);
+  if (!isExisteduser)
+    return next(new apiError(404, "User not found", null, false));
+
+  const { fullName } = req.body;
+  const profilePicture = req.file;
+
+  if (fullName) isExisteduser.fullName = fullName.trim();
+
+  if (profilePicture) {
+    try {
+      if (isExisteduser.profilePicture) {
+        let isDeleted = await deleteCloudinaryAsset(
+          isExisteduser.profilePicture
+        );
+        console.log(isDeleted);
+      }
+
+      const uploadResult = await uploadCloudinary(
+        profilePicture.buffer,
+        "profilePic"
+      );
+
+      if (!uploadResult?.secure_url) {
+        return next(new apiError(500, "Profile picture upload failed"));
+      }
+
+      isExisteduser.profilePicture = uploadResult.secure_url;
+    } catch (error) {
+      console.error("Cloudinary error:", error);
+      return next(new apiError(500, "Error updating profile picture"));
+    }
+  }
+
+  const updatedUser = await isExisteduser.save();
+
+  return res.status(200).json(
+    new apiSuccess(
+      200,
+      "User updated successfully",
+      {
+        fullName: updatedUser.fullName,
+        email: updatedUser.email,
+        profilePic: updatedUser.profilePic,
+      },
+      true
+    )
+  );
+});
+
+const deleteUserAccount = asyncHandler(
+  asyncHandler(async (req, res, next) => {
+    const decodedData = await decodeSessionToken(req);
+    if (!decodedData)
+      return next(new apiError(401, "Unauthorized", null, false));
+
+    const isExisteduser = await user.findById(decodedData?.userData?.userId);
+    if (!isExisteduser)
+      return next(new apiError(404, "User not found", null, false));
+
+    let isDeleted = await deleteCloudinaryAsset(isExisteduser.profilePicture);
+    if (!isDeleted) {
+      return next(
+        new apiError(
+          500,
+          "Can't delete user profile picture , please try agian letter",
+          null,
+          false
+        )
+      );
+    }
+
+    const deletedAccount = await user.findByIdAndDelete(
+      decodedData?.userData?.userId
+    );
+
+    if (!deletedAccount) {
+      return next(
+        new apiError(
+          500,
+          "Can't delete your account at the moment  , please try agian letter",
+          null,
+          false
+        )
+      );
+    }
+
+    return res
+      .status(200)
+      .json(
+        new apiSuccess(200, "User account deleted successfully", null, true)
+      );
+  })
+);
+
+const logoutUser = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData) {
+    return next(
+      new apiError(401, "Unauthorized - Invalid or missing token", null, false)
+    );
+  }
+
+  const isExistedUser = await user.findById(decodedData?.userData?.userId);
+  if (!isExistedUser) {
+    return next(new apiError(404, "User not found", null, false));
+  }
+
+  isExistedUser.refreshToken = null;
+  await isExistedUser.save();
+
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Logged out successfully", null, true));
+});
+
 module.exports = {
   registerUserController,
   loginUserController,
@@ -361,4 +481,7 @@ module.exports = {
   verifyEmail,
   verifyOtp,
   resetPassword,
+  updateUser,
+  deleteUserAccount,
+  logoutUser,
 };

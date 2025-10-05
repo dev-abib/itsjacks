@@ -57,10 +57,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-// app.use((err, req, res, next) => {
-//   logger.error("Unhandled error", { message: err.message, stack: err.stack });
-//   res.status(500).send("Something broke!");
-// });
 
 // listen
 app.listen(PORT, "0.0.0.0", () => {

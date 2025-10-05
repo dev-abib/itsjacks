@@ -8,6 +8,9 @@ const {
   verifyEmail,
   verifyOtp,
   resetPassword,
+  updateUser,
+  deleteUserAccount,
+  logoutUser,
 } = require("../../Controller/user.controller");
 const { uploadImages } = require("../../middleware/multer.middleware");
 const { authguard } = require("../../middleware/authGuard");
@@ -24,6 +27,11 @@ router
 // login user
 router.route("/login").post(loginUserController);
 
+// update user
+router
+  .route("/update-user")
+  .put(authguard, uploadImages.single("profilePicture"), updateUser);
+
 // get me
 router.route("/get-me").get(authguard, getUserData);
 
@@ -37,5 +45,9 @@ router.route("/verify-email").post(verifyEmail);
 router.route("/verify-otp").post(verifyOtp);
 
 router.route("/reset-pass").post(authguard, resetPassword);
+
+router.route("/delete-acc").delete(authguard, deleteUserAccount);
+
+router.route("/log-out").post(authguard, logoutUser);
 
 module.exports = router;
