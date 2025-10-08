@@ -142,7 +142,6 @@ const verifyAccount = asyncHandler(async (req, res, next) => {
   if (!isExisteduser)
     return next(new apiError(404, "User not found", null, false));
 
-  console.log(isExisteduser);
 
   if (isExisteduser.otp !== otp)
     return next(new apiError(400, "Invalid OTP", null, false));
@@ -150,7 +149,7 @@ const verifyAccount = asyncHandler(async (req, res, next) => {
   if (new Date() > isExisteduser.otpExpiresAt)
     return next(new apiError(400, "OTP expired", null, false));
 
-  isExisteduser.resetToken = token;
+
   isExisteduser.refreshToken = null;
   isExisteduser.otp = null;
   isExisteduser.otpExpiresAt = null;
@@ -439,7 +438,6 @@ const updateUser = asyncHandler(async (req, res, next) => {
         let isDeleted = await deleteCloudinaryAsset(
           isExisteduser.profilePicture
         );
-        console.log(isDeleted);
       }
 
       const uploadResult = await uploadCloudinary(
