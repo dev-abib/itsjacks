@@ -11,6 +11,7 @@ const {
   updateUser,
   deleteUserAccount,
   logoutUser,
+  verifyAccount,
 } = require("../../Controller/user.controller");
 const { uploadImages } = require("../../middleware/multer.middleware");
 const { authguard } = require("../../middleware/authGuard");
@@ -23,6 +24,8 @@ const router = Router();
 router
   .route("/register")
   .post(uploadImages.single("profilePicture"), registerUserController);
+
+  router.route("/verify-acc").put(verifyAccount);
 
 // login user
 router.route("/login").post(loginUserController);

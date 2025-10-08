@@ -25,6 +25,9 @@ const userSchema = new Schema(
     isVerifiedAccount: {
       type: Boolean,
     },
+    isOtpVerified: {
+      type: Boolean
+    },
     otp: {
       type: String,
     },

@@ -26,7 +26,6 @@ const mongoose = require("mongoose");
 const registerUserController = asyncHandler(async (req, res, next) => {
   const { fullName, email, role, password, confirmPassword } = req.body;
 
-
   if (!email) return next(new apiError(400, "Email field is required"));
 
   if (!emailChecker(email))
@@ -94,10 +93,74 @@ const registerUserController = asyncHandler(async (req, res, next) => {
     token,
   };
 
+  const otp = await otpGenerator();
+
+  savedUser.otp = otp;
+  savedUser.otpExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
+  await savedUser.save();
+
+  const isMailSend = await mailSender({
+    type: "verify-account",
+    name: savedUser.fullName || "User",
+    emailAdress: email,
+    subject: "Your One-Time Password (OTP)",
+    otp,
+  });
+
+  if (!isMailSend) {
+    return next(new apiError(500, "Failed to send OTP email", null, false));
+  }
+
   return res
     .status(200)
     .json(
-      new apiSuccess(200, "Successfully registereduser.", responseData, true)
+      new apiSuccess(
+        200,
+        "User registered successfully. An OTP has been sent to your email address — please check your inbox.",
+        responseData,
+        true
+      )
+    );
+});
+
+// verify account
+
+const verifyAccount = asyncHandler(async (req, res, next) => {
+  const { email, otp } = req.body;
+
+  if (!email)
+    return next(new apiError(400, "Email field is required", null, false));
+
+  if (!otp)
+    return next(new apiError(400, "OTP field is required", null, false));
+
+  if (!emailChecker(email))
+    return next(new apiError(400, "Invalid Email format", null, false));
+
+  const isExisteduser = await user.findOne({ email });
+
+  if (!isExisteduser)
+    return next(new apiError(404, "User not found", null, false));
+
+  console.log(isExisteduser);
+
+  if (isExisteduser.otp !== otp)
+    return next(new apiError(400, "Invalid OTP", null, false));
+
+  if (new Date() > isExisteduser.otpExpiresAt)
+    return next(new apiError(400, "OTP expired", null, false));
+
+  isExisteduser.resetToken = token;
+  isExisteduser.refreshToken = null;
+  isExisteduser.otp = null;
+  isExisteduser.otpExpiresAt = null;
+  isExisteduser.isOtpVerified = true;
+  await isExisteduser.save();
+
+  return res
+    .status(200)
+    .json(
+      new apiSuccess(200, "Account verified successfully", null, true, null)
     );
 });
 
@@ -129,6 +192,16 @@ const loginUserController = asyncHandler(async (req, res, next) => {
 
   if (!isVerifiedPass)
     return next(new apiError(400, "Invalid email or password", null, false));
+
+  if (
+    isExistingUser.isOtpVerified === null ||
+    isExistingUser.isOtpVerified === undefined ||
+    isExistingUser.isOtpVerified !== true
+  ) {
+    return next(
+      new apiError(400, "Before login , please verify you account", null, false)
+    );
+  }
 
   const data = {
     name: isExistingUser.fullName,
@@ -478,4 +551,5 @@ module.exports = {
   updateUser,
   deleteUserAccount,
   logoutUser,
+  verifyAccount,
 };

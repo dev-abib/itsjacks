@@ -1,5 +1,5 @@
 const nodemailer = require("nodemailer");
-const { PasswordResetTemplate } = require("./email.template");
+const { PasswordResetTemplate, AccountVerificationTemplate } = require("./email.template");
 
 const mailSender = async ({ type, name, emailAdress, subject, otp }) => {
   try {
@@ -16,7 +16,11 @@ const mailSender = async ({ type, name, emailAdress, subject, otp }) => {
     let html;
 
     if (type === "otp") {
-      html = PasswordResetTemplate(name, otp, process.env.MAIL_FROM_ADDRESS);
+      html = PasswordResetTemplate(name, otp, emailAdress);
+    }
+
+    if (type === "verify-account") {
+      html = AccountVerificationTemplate(name, otp, emailAdress);
     }
 
     const mailOptions = {
