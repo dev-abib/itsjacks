@@ -26,10 +26,6 @@ const mongoose = require("mongoose");
 const registerUserController = asyncHandler(async (req, res, next) => {
   const { fullName, email, role, password, confirmPassword } = req.body;
 
-  const profilePicture = req.file;
-
-  if (!profilePicture)
-    return next(new apiError(400, "Profile picture is required"));
 
   if (!email) return next(new apiError(400, "Email field is required"));
 
@@ -38,14 +34,24 @@ const registerUserController = asyncHandler(async (req, res, next) => {
 
   if (!password) return next(new apiError(400, "Password field is required"));
 
-  if (!passwordChecker(password))
-    return next(new apiError(400, "Invalid password format"));
+  if (!passwordChecker(confirmPassword))
+    return next(
+      new apiError(
+        400,
+        "Invalid  password format. Password must be 8–32 characters long, contain at least one uppercase letter, one lowercase letter, one number, and one special character (e.g., @, $, !, %, *, ?, &, #, +)."
+      )
+    );
 
   if (!confirmPassword)
     return next(new apiError(400, "Confirm password is required"));
 
   if (!passwordChecker(confirmPassword))
-    return next(new apiError(400, "Invalid confirm password format"));
+    return next(
+      new apiError(
+        400,
+        "Invalid confirm password format. Password must be 8–32 characters long, contain at least one uppercase letter, one lowercase letter, one number, and one special character (e.g., @, $, !, %, *, ?, &, #, +)."
+      )
+    );
 
   if (password !== confirmPassword)
     return next(new apiError(400, "Passwords do not match"));
@@ -55,23 +61,11 @@ const registerUserController = asyncHandler(async (req, res, next) => {
 
   const hashedPassword = await hashUserPassword(password);
 
-  let uploadResult;
-  try {
-    uploadResult = await uploadCloudinary(profilePicture.buffer, "profilePic");
-  } catch (error) {
-    console.error("Cloudinary upload error:", error);
-    return next(new apiError(500, "Failed to upload profile picture"));
-  }
-
-  if (!uploadResult?.secure_url)
-    return next(new apiError(500, "Cloudinary upload failed"));
-
   let savedUser = null;
 
   const newUser = new user({
     fullName,
     email,
-    profilePicture: uploadResult.secure_url,
     role,
     password: hashedPassword,
   });
