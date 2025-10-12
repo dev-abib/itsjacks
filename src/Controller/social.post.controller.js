@@ -110,13 +110,11 @@ const incrementShareCount = asyncHandler(async (req, res, next) => {
  * @desc Get all posts
  */
 const getAllPosts = asyncHandler(async (req, res, next) => {
-  
-  const page = Math.max(parseInt(req.query.page) || 1, 1); 
-  const limit = Math.min(parseInt(req.query.limit) || 10, 100);  
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.min(parseInt(req.query.limit) || 10, 100);
   const skip = (page - 1) * limit;
 
   const totalPosts = await Post.countDocuments();
-
 
   const posts = await Post.find()
     .populate("author", "fullName email profilePicture")
@@ -135,7 +133,6 @@ const getAllPosts = asyncHandler(async (req, res, next) => {
     prevPage: page > 1 ? page - 1 : null,
   };
 
-
   return res.status(200).json(
     new apiSuccess(
       200,
@@ -149,10 +146,57 @@ const getAllPosts = asyncHandler(async (req, res, next) => {
   );
 });
 
+const getMyPosts = asyncHandler(async (req, res, next) => {
+  let decodedData;
+  try {
+    decodedData = await decodeSessionToken(req);
+  } catch (error) {
+    return res.status(401).json(new apiError(401, "Unauthorized", null, false));
+  }
+
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+  const skip = (page - 1) * limit;
+
+  const userId = decodedData.userData.userId;
+
+  const totalPosts = await Post.countDocuments({ author: userId });
+
+  const myPosts = await Post.find({ author: userId })
+    .populate("author", "fullName email profilePicture")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  const pagination = {
+    currentPage: page,
+    limit,
+    totalPages: Math.ceil(totalPosts / limit),
+    totalPosts,
+    hasNextPage: page * limit < totalPosts,
+    hasPrevPage: page > 1,
+    nextPage: page * limit < totalPosts ? page + 1 : null,
+    prevPage: page > 1 ? page - 1 : null,
+  };
+
+  return res.status(200).json(
+    new apiSuccess(
+      200,
+      "Posts fetched successfully",
+      {
+        myPosts,
+        pagination,
+      },
+      true
+    )
+  );
+});
+
 
 module.exports = {
   createPost,
   toggleLikePost,
   incrementShareCount,
   getAllPosts,
+  getMyPosts,
 };

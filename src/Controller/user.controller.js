@@ -206,6 +206,7 @@ const loginUserController = asyncHandler(async (req, res, next) => {
     name: isExistingUser.fullName,
     email: isExistingUser.email,
     userId: isExistingUser._id,
+    role: isExistingUser.role,
   };
 
   const token = await createSessionToken(data);

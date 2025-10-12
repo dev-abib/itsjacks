@@ -8,6 +8,7 @@ const {
   toggleLikePost,
   incrementShareCount,
   getAllPosts,
+  getMyPosts,
 } = require("../../Controller/social.post.controller");
 
 
@@ -27,5 +28,7 @@ router.route("/:postId/share-count").put(authguard, incrementShareCount);
 
 // Get all posts
 router.route("/get-all-posts").get(authguard, getAllPosts);
+
+router.route("/get-my-posts").get(authguard, getMyPosts);
 
 module.exports = router;
