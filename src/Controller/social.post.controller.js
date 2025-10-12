@@ -257,6 +257,12 @@ const rateEvent = asyncHandler(async (req, res, next) => {
     return next(new apiError(400, "No event found with this ID", null, false));
   }
 
+  if (post.postType !== "event") {
+    return next(
+      new apiError(400, "Selected post is  not a event. ", null, false)
+    );
+  }
+
   // Check if the user has already rated this event
   const existingRatingIndex = post.ratingInfo.findIndex(
     (ratingObj) =>
@@ -284,7 +290,6 @@ const rateEvent = asyncHandler(async (req, res, next) => {
 
   // Save the updated post
   await post.save();
-
 
   return res
     .status(200)
