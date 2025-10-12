@@ -18,10 +18,35 @@ const postSchema = new mongoose.Schema(
       ref: "user",
       required: true,
     },
+    eventTime: {
+      type: Date,
+    },
+    postType: {
+      type: String,
+      required: [true, "post type is required"],
+      enum: ["community-post", "event"],
+      message: "Post type must be one of the following:  user, or moderator",
+    },
+    ratingInfo: [
+      {
+        user: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "user",
+          required: true,
+        },
+        rating: {
+          type: String,
+          required: true,
+        },
+      },
+    ],
+    approxRating: {
+      type: Number,
+    },
     likes: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "user", 
+        ref: "user",
       },
     ],
     likeCount: {
@@ -35,7 +60,6 @@ const postSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-
 
 const Post = models.post || model("post", postSchema);
 

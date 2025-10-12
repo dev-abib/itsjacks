@@ -2,16 +2,14 @@ const express = require("express");
 const { authguard } = require("../../middleware/authGuard");
 const { uploadImages } = require("../../middleware/multer.middleware");
 
-
 const {
   createPost,
   toggleLikePost,
   incrementShareCount,
   getAllPosts,
   getMyPosts,
+  rateEvent,
 } = require("../../Controller/social.post.controller");
-
-
 
 const router = express.Router();
 
@@ -30,5 +28,7 @@ router.route("/:postId/share-count").put(authguard, incrementShareCount);
 router.route("/get-all-posts").get(authguard, getAllPosts);
 
 router.route("/get-my-posts").get(authguard, getMyPosts);
+
+router.route("/rate-event/:id").get(authguard, rateEvent);
 
 module.exports = router;

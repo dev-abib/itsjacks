@@ -10,17 +10,52 @@ const { uploadCloudinary } = require("../Helpers/uploadCloudinary");
  * @desc Create new post
  */
 const createPost = asyncHandler(async (req, res, next) => {
+  const { description, eventTime, postType } = req.body;
+  const files = req.files;
+
+  // Decode session token
   const decodedData = await decodeSessionToken(req);
   if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
 
-  const { description } = req.body;
-  const files = req.files;
+  const role = decodedData?.userData?.role;
 
-  if (!files || files.length === 0)
+  // Validate post type
+  if (!["community-post", "event"].includes(postType)) {
+    return next(new apiError(400, "Invalid post type", null, false));
+  }
+
+  // Only creators can create events
+  if (role !== "creator" && postType === "event") {
+    return next(
+      new apiError(400, "Only a creator can create an event post", null, false)
+    );
+  }
+
+  // If post type is event, eventTime is required
+  if (role === "creator" && postType === "event" && !eventTime) {
+    return next(
+      new apiError(
+        400,
+        "To create an event, you must provide an event time.",
+        null,
+        false
+      )
+    );
+  }
+
+  // Validate eventTime
+  if (postType === "event" && isNaN(new Date(eventTime))) {
+    return next(new apiError(400, "Invalid event time provided.", null, false));
+  }
+
+  // Validate file upload
+  if (!files || files.length === 0) {
     return next(
       new apiError(400, "At least one image is required", null, false)
     );
+  }
 
+  // Handle image upload to Cloudinary
   let uploadedImages = [];
   try {
     for (const file of files) {
@@ -34,10 +69,13 @@ const createPost = asyncHandler(async (req, res, next) => {
     return next(new apiError(500, "Failed to upload post images", null, false));
   }
 
+  // Create post in the database
   const newPost = await Post.create({
     description,
     images: uploadedImages,
     author: decodedData.userData.userId,
+    eventTime: eventTime ? new Date(eventTime) : null,
+    postType: postType,
   });
 
   return res
@@ -192,6 +230,66 @@ const getMyPosts = asyncHandler(async (req, res, next) => {
   );
 });
 
+const rateEvent = asyncHandler(async (req, res, next) => {
+  let decodedData;
+
+  const { rating } = req.body;
+  const { id } = req.params;
+
+  // Check if the rating is provided and valid
+  if (!rating || !["1", "2", "3", "4", "5"].includes(rating)) {
+    return next(
+      new apiError(400, "Rating must be between 1 and 5", null, false)
+    );
+  }
+
+  try {
+    // Decode the session token to get the user information
+    decodedData = await decodeSessionToken(req);
+  } catch (error) {
+    return res.status(401).json(new apiError(401, "Unauthorized", null, false));
+  }
+
+  // Find the event (Post) by ID
+  const post = await Post.findById(id);
+
+  if (!post) {
+    return next(new apiError(400, "No event found with this ID", null, false));
+  }
+
+  // Check if the user has already rated this event
+  const existingRatingIndex = post.ratingInfo.findIndex(
+    (ratingObj) =>
+      ratingObj.user.toString() === decodedData.userData.userId.toString()
+  );
+
+  // If the user has already rated, update the rating
+  if (existingRatingIndex > -1) {
+    post.ratingInfo[existingRatingIndex].rating = rating;
+  } else {
+    // If the user hasn't rated, add the new rating
+    post.ratingInfo.push({
+      user: decodedData.userData.userId,
+      rating,
+    });
+  }
+
+  // Recalculate the approximate rating (average)
+  const totalRatings = post.ratingInfo.length;
+  const sumRatings = post.ratingInfo.reduce(
+    (sum, ratingObj) => sum + parseInt(ratingObj.rating),
+    0
+  );
+  post.approxRating = sumRatings / totalRatings;
+
+  // Save the updated post
+  await post.save();
+
+
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Rating added successfully", post, true));
+});
 
 module.exports = {
   createPost,
@@ -199,4 +297,5 @@ module.exports = {
   incrementShareCount,
   getAllPosts,
   getMyPosts,
+  rateEvent,
 };
