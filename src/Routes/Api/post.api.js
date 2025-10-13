@@ -9,6 +9,10 @@ const {
   getAllPosts,
   getMyPosts,
   rateEvent,
+  getEvents,
+  getMyEvents,
+  saveEventTime,
+  getMySavedEventTime,
 } = require("../../Controller/social.post.controller");
 
 const router = express.Router();
@@ -27,8 +31,22 @@ router.route("/:postId/share-count").put(authguard, incrementShareCount);
 // Get all posts
 router.route("/get-all-posts").get(authguard, getAllPosts);
 
+// get my posts
 router.route("/get-my-posts").get(authguard, getMyPosts);
 
-router.route("/rate-event/:id").get(authguard, rateEvent);
+// rate event
+router.route("/rate-event/:id").post(authguard, rateEvent);
+
+// save event time 
+router.route("/save-event-time/:eventId").post(authguard, saveEventTime);
+
+// get all events
+router.route("/get-all-events").get(authguard, getEvents);
+
+// get my events 
+router.route("/get-my-events").get(authguard, getMyEvents);
+
+// get my saved events
+router.route("/get-my-saved-events").get(authguard, getMySavedEventTime);
 
 module.exports = router;

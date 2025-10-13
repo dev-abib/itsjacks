@@ -27,6 +27,12 @@ const postSchema = new mongoose.Schema(
       enum: ["community-post", "event"],
       message: "Post type must be one of the following:  user, or moderator",
     },
+    savedBy: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user", 
+      },
+    ],
     ratingInfo: [
       {
         user: {
