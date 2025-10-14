@@ -1,26 +1,28 @@
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
-// const logger = require("./src/Utils/logger")
+const bodyParser = require("body-parser");
+const webPush = require("web-push");
 
-// internal dependencies
 const allRoutes = require("./src/Routes/index");
-
-// main app initialization
 const app = express();
-
-// app port
 const PORT = process.env.PORT || 8000;
 
-// middlewares
+// VAPID keys for push notifications
+const publicVapidKey = process.env.PUBLIC_VAPID_KEY;
+const privateVapidKey = process.env.PRIVATE_VAPID_KEY;
+const vapidEmail = process.env.VAPID_EMAIL;
+
+// Middleware
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(cookieParser());
-
-// security
+app.use(bodyParser.json());
 app.use(helmet());
+
 app.use(
   cors({
     origin: [
@@ -33,6 +35,7 @@ app.use(
   })
 );
 
+// Rate limiter
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -40,13 +43,25 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// static files
+// Web Push setup
+webPush.setVapidDetails(
+  `mailto:${vapidEmail}`,
+  publicVapidKey,
+  privateVapidKey
+);
+
+// Static files
 app.use("/public", express.static("public"));
 
-// routes
+// Health check
+app.get("/health", (req, res) => {
+  res.status(200).json({ message: "Server is healthy" });
+});
+
+// Routes
 app.use(allRoutes);
 
-// error handler
+// Error handler
 app.use((err, req, res, next) => {
   const statusCode = err.status || 500;
   res.status(statusCode).json({
@@ -57,8 +72,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-
-// listen
+// Start server
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Listening on port http://localhost:${PORT}`);
+  console.log(`✅ Listening on http://localhost:${PORT}`);
 });

@@ -5,6 +5,7 @@ const { apiError } = require("../Utils/api.error");
 const { apiSuccess } = require("../Utils/api.success");
 const { decodeSessionToken } = require("../Helpers/helper");
 const { uploadCloudinary } = require("../Helpers/uploadCloudinary");
+const webPush = require("web-push");
 
 /**
  * @desc Create new post
@@ -93,21 +94,54 @@ const toggleLikePost = asyncHandler(async (req, res, next) => {
   const { postId } = req.params;
   const userId = decodedData.userData.userId;
 
-  const post = await Post.findById(postId);
+  // Find the post by ID
+  const post = await Post.findById(postId).populate("author"); 
+
   if (!post) return next(new apiError(404, "Post not found", null, false));
 
   const isLiked = post.likes.includes(userId);
 
+  // Get the post owner's ID to send the notification to
+  const postOwnerId = post.author._id; 
+
   if (isLiked) {
+    // If already liked, unlike the post
     post.likes.pull(userId);
     post.likeCount -= 1;
   } else {
+    // If not liked, like the post
     post.likes.push(userId);
     post.likeCount += 1;
   }
 
+  // Save the updated post
   await post.save();
 
+  // If the user is liking the post, send a notification to the post owner
+  if (!isLiked) {
+    // Find the post owner
+    const postOwner = await user.findById(postOwnerId); // Fetch the post owner to send the notification
+    if (postOwner && postOwner.notificationToken) {
+      const payload = JSON.stringify({
+        title: "Post Liked",
+        message: `${decodedData.userData.fullName} liked your post!`,
+        url: `/posts/${postId}`,
+      });
+
+      try {
+        // Send notification to the post owner
+        await webPush.sendNotification(postOwner.notificationToken, payload);
+        console.log(`Notification sent to user ${postOwnerId}`);
+      } catch (error) {
+        console.error(
+          `Failed to send notification to user ${postOwnerId}:`,
+          error
+        );
+      }
+    }
+  }
+
+  // Send the response to the client
   return res
     .status(200)
     .json(
@@ -432,30 +466,35 @@ const saveEventTime = asyncHandler(async (req, res, next) => {
   }
 
   const { eventId } = req.params;
-
   const userId = decodedData.userData.userId;
 
-  const updatedEvent = await Post.findByIdAndUpdate(
+  // Find the event by ID
+  const updatedEvent = await Post.findById(eventId);
+  if (!updatedEvent) {
+    return next(new apiError(404, "Event not found", null, false));
+  }
+
+  // Use $addToSet to prevent duplicates in savedBy array
+  const result = await Post.findByIdAndUpdate(
     eventId,
     { $addToSet: { savedBy: userId } },
     { new: true }
   );
 
-  if (!updatedEvent) {
-    return next(new apiError(404, "Event not found", null, false));
+  if (!result) {
+    return next(new apiError(500, "Error saving the event", null, false));
   }
 
-  return res.status(200).json(
-    new apiSuccess(
-      200,
-      "Successfully added event on the calender",
-      {
-        myPosts,
-        pagination,
-      },
-      true
-    )
-  );
+  return res
+    .status(200)
+    .json(
+      new apiSuccess(
+        200,
+        "Successfully added event to your calendar",
+        { result },
+        true
+      )
+    );
 });
 
 const getMySavedEventTime = asyncHandler(async (req, res, next) => {
