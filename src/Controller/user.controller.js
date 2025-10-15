@@ -19,8 +19,7 @@ const { apiError } = require("../Utils/api.error");
 const { apiSuccess } = require("../Utils/api.success");
 const { asyncHandler } = require("../Utils/asyncHandler");
 const { emailChecker, passwordChecker } = require("../Utils/check");
-const bcrypt = require("bcrypt");
-const mongoose = require("mongoose");
+
 
 // register user controller
 const registerUserController = asyncHandler(async (req, res, next) => {
