@@ -7,6 +7,9 @@ const {
 } = require("../Helpers/helper");
 const { uploadCloudinary, deleteCloudinaryAsset } = require("../Helpers/uploadCloudinary");
 const { Admin } = require("../Schema/admin.schema");
+const { companyAddressModel } = require("../Schema/company.address.schema");
+const { siteSettingModel } = require("../Schema/site.settings.schema");
+const { socailSiteModel } = require("../Schema/social.media.schema");
 const { user } = require("../Schema/user.schema");
 
 const { apiError } = require("../Utils/api.error");
@@ -298,10 +301,261 @@ const updateAdminPassword = asyncHandler(async (req, res, next) => {
     );
 });
 
+const updateSocialSiteData = asyncHandler(async (req, res, next) => {
+  const { facebook, instagram, youtube, twitter, linkdein } = req.body;
+
+  const existinSocailsSite = await socailSiteModel.findOne();
+
+  if (existinSocailsSite) {
+    (existinSocailsSite.facebook = facebook || existinSocailsSite.facebook),
+      (existinSocailsSite.facebook = instagram || existinSocailsSite.instagram);
+    existinSocailsSite.facebook = youtube || existinSocailsSite.youtube;
+    existinSocailsSite.twitter = twitter || existinSocailsSite.twitter;
+    existinSocailsSite.linkdein = linkdein || existinSocailsSite.linkdein;
+    await existingSettings.save();
+
+    return res
+      .status(200)
+      .json(
+        new apiSuccess(
+          200,
+          "Socail site data updated successfully",
+          existingSettings,
+          false
+        )
+      );
+  }
+
+  const created = await socailSiteModel.create({
+    facebook,
+    instagram,
+    youtube,
+    twitter,
+    linkdein,
+  });
+
+  return res
+    .status(201)
+    .json(
+      new apiSuccess(201, "Smtp settings created successfully", created, false)
+    );
+});
+
+const getSocialSiteData = asyncHandler(async (req, res, next) => {
+  const data = await socailSiteModel.findOne();
+
+  if (!data) {
+    return next(new apiError(404, "Socail site data not found"));
+  }
+
+  return res
+    .status(200)
+    .json(
+      new apiSuccess(200, "Socail site data fetched successfully", data, false)
+    );
+});
+
+const upInseertCompanyAddress = asyncHandler(async (req, res, next) => {
+  const {
+    addressLine,
+    city,
+    state,
+    zipCode,
+    phoneNumber,
+    descreptionTxt,
+    accountTitle,
+    addresstTitle,
+  } = req.body;
+
+  const comapanyAddress = await companyAddressModel.findOne();
+
+  if (!comapanyAddress) {
+    const newComapnyAddress = new companyAddressModel({
+      accountTitle,
+      addressLine,
+      city,
+      state,
+      zipCode,
+      phoneNumber,
+      descreptionTxt,
+      addresstTitle,
+    });
+
+    const saveCompanyAddress = await newComapnyAddress.save();
+
+    return res
+      .status(200)
+      .json(
+        new apiSuccess(
+          200,
+          "Successfully created company address data",
+          saveCompanyAddress,
+          true,
+          false
+        )
+      );
+  } else {
+    comapanyAddress.accountTitle = accountTitle || comapanyAddress.accountTitle;
+    comapanyAddress.addressLine = addressLine || comapanyAddress.addressLine;
+    comapanyAddress.city = city || comapanyAddress.city;
+    comapanyAddress.state = state || comapanyAddress.state;
+    comapanyAddress.zipCode = zipCode || comapanyAddress.zipCode;
+    comapanyAddress.phoneNumber = phoneNumber || comapanyAddress.phoneNumber;
+    comapanyAddress.descreptionTxt =
+      descreptionTxt || comapanyAddress.descreptionTxt;
+    comapanyAddress.addresstTitle =
+      addresstTitle || comapanyAddress.addresstTitle;
+
+    await comapanyAddress.save();
+
+    return res
+      .status(200)
+      .json(
+        new apiSuccess(
+          200,
+          "Successfully updated company address data",
+          null,
+          true,
+          false
+        )
+      );
+  }
+});
+
+const getCompanyAddressData = asyncHandler(async (req, res, next) => {
+  const comapanyAddress = await companyAddressModel.findOne();
+
+  if (!comapanyAddress) {
+    return next(new apiError(404, "company address not found", null, false));
+  }
+
+  return res
+    .status(200)
+    .json(
+      new apiSuccess(
+        200,
+        "successfully get company data",
+        comapanyAddress,
+        false
+      )
+    );
+});
+
+const updateSiteSettings = asyncHandler(async (req, res, next) => {
+  console.log(req.body); // Ensure the body is properly logged
+
+  // Destructure the required fields from req.body
+  const {
+    title,
+    name,
+    phoneNumber,
+    systemDetails, // Corrected typo
+    address,
+    email,
+    openingHour,
+    copyrightTxt,
+    infoNumber,
+    infoMsg,
+    infCompany,
+  } = req.body;
+
+
+  try {
+    // Find the existing settings from the database
+    const existingSettings = await siteSettingModel.findOne();
+
+    // If settings exist, update them
+    if (existingSettings) {
+      existingSettings.title = title || existingSettings.title;
+      existingSettings.name = name || existingSettings.name;
+      existingSettings.phoneNumber =
+        phoneNumber || existingSettings.phoneNumber;
+      existingSettings.systemDetails =
+        systemDetails || existingSettings.systemDetails;
+      existingSettings.address = address || existingSettings.address;
+      existingSettings.email = email || existingSettings.email;
+      existingSettings.openingHour =
+        openingHour || existingSettings.openingHour;
+      existingSettings.copyrightTxt =
+        copyrightTxt || existingSettings.copyrightTxt;
+      existingSettings.infoNumber = infoNumber || existingSettings.infoNumber;
+      existingSettings.infoMsg = infoMsg || existingSettings.infoMsg;
+      existingSettings.infCompany = infCompany || existingSettings.infCompany;
+
+      // Save the updated settings
+      await existingSettings.save();
+
+      return res
+        .status(200)
+        .json(
+          new apiSuccess(
+            200,
+            "Site settings updated successfully",
+            existingSettings,
+            false
+          )
+        );
+    }
+
+    // If no existing settings, create a new one
+    const created = await siteSettingModel.create({
+      title,
+      name,
+      phoneNumber,
+      systemDetails, // Corrected typo
+      address,
+      email,
+      openingHour,
+      copyrightTxt,
+      infoNumber,
+      infoMsg,
+      infCompany,
+    });
+
+    return res
+      .status(201)
+      .json(
+        new apiSuccess(
+          201,
+          "Site settings created successfully",
+          created,
+          false
+        )
+      );
+  } catch (error) {
+    // Catch any unexpected errors
+    console.error(error);
+    return res.status(500).json({
+      message: "An error occurred while updating the site settings.",
+      error: error.message,
+    });
+  }
+});
+
+
+const getSiteSettings = asyncHandler(async (req, res, next) => {
+  const data = await siteSettingModel.findOne();
+
+  if (!data) {
+    return next(new apiError(404, "Site settings not found"));
+  }
+
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Site settings fetched", data, false));
+});
+
+
 module.exports = {
   loginAdminController,
   verifyAdmin,
   getAllUserData,
   updateAdminData,
   updateAdminPassword,
+  updateSocialSiteData,
+  getSocialSiteData,
+  upInseertCompanyAddress,
+  getCompanyAddressData, 
+  updateSiteSettings,
+  getSiteSettings
 };
