@@ -23,22 +23,27 @@ app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(helmet());
 
+// Enable CORS for specific origins
 app.use(
   cors({
     origin: [
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "https://itsjacks-dashboard.vercel.app",
+      "http://localhost:5173", // Local dev
+      "http://localhost:5174", // Local dev
+      "https://itsjacks-dashboard.vercel.app", // Frontend URL
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
-    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"], // Headers your frontend will send
+    credentials: true, // If you are using cookies or authentication
   })
 );
 
+// Handle preflight (OPTIONS) requests
+app.options("*", cors()); // This handles all preflight requests
+
 // Rate limiter
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
   message: "Too many requests from this IP, please try again later.",
 });
 app.use(limiter);
@@ -53,7 +58,7 @@ webPush.setVapidDetails(
 // Static files
 app.use("/public", express.static("public"));
 
-// Health check
+// Health check route
 app.get("/health", (req, res) => {
   res.status(200).json({ message: "Server is healthy" });
 });
