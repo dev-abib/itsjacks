@@ -118,28 +118,28 @@ const toggleLikePost = asyncHandler(async (req, res, next) => {
   await post.save();
 
   // If the user is liking the post, send a notification to the post owner
-  if (!isLiked) {
-    // Find the post owner
-    const postOwner = await user.findById(postOwnerId); // Fetch the post owner to send the notification
-    if (postOwner && postOwner.notificationToken) {
-      const payload = JSON.stringify({
-        title: "Post Liked",
-        message: `${decodedData.userData.fullName} liked your post!`,
-        url: `/posts/${postId}`,
-      });
+  // if (!isLiked) {
+  //   // Find the post owner
+  //   const postOwner = await user.findById(postOwnerId); // Fetch the post owner to send the notification
+  //   if (postOwner && postOwner.notificationToken) {
+  //     const payload = JSON.stringify({
+  //       title: "Post Liked",
+  //       message: `${decodedData.userData.fullName} liked your post!`,
+  //       url: `/posts/${postId}`,
+  //     });
 
-      try {
-        // Send notification to the post owner
-        await webPush.sendNotification(postOwner.notificationToken, payload);
-        console.log(`Notification sent to user ${postOwnerId}`);
-      } catch (error) {
-        console.error(
-          `Failed to send notification to user ${postOwnerId}:`,
-          error
-        );
-      }
-    }
-  }
+  //     try {
+  //       // Send notification to the post owner
+  //       // await webPush.sendNotification(postOwner.notificationToken, payload);
+  //       console.log(`Notification sent to user ${postOwnerId}`);
+  //     } catch (error) {
+  //       console.error(
+  //         `Failed to send notification to user ${postOwnerId}:`,
+  //         error
+  //       );
+  //     }
+  //   }
+  // }
 
   // Send the response to the client
   return res

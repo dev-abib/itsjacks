@@ -44,19 +44,19 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // Web Push setup
-webPush.setVapidDetails(
-  `mailto:${vapidEmail}`,
-  publicVapidKey,
-  privateVapidKey
-);
+// webPush.setVapidDetails(
+//   `mailto:${vapidEmail}`,
+//   publicVapidKey,
+//   privateVapidKey
+// );
 
 // Static files
 app.use("/public", express.static("public"));
 
 // Health check
-app.get("/health", (req, res) => {
-  res.status(200).json({ message: "Server is healthy" });
-});
+// app.get("/health", (req, res) => {
+//   res.status(200).json({ message: "Server is healthy" });
+// });
 
 // Routes
 app.use(allRoutes);
