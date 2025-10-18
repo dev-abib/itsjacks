@@ -312,7 +312,7 @@ const updateSocialSiteData = asyncHandler(async (req, res, next) => {
     existinSocailsSite.facebook = youtube || existinSocailsSite.youtube;
     existinSocailsSite.twitter = twitter || existinSocailsSite.twitter;
     existinSocailsSite.linkdein = linkdein || existinSocailsSite.linkdein;
-    await existingSettings.save();
+    await existinSocailsSite.save();
 
     return res
       .status(200)
@@ -320,7 +320,7 @@ const updateSocialSiteData = asyncHandler(async (req, res, next) => {
         new apiSuccess(
           200,
           "Socail site data updated successfully",
-          existingSettings,
+          existinSocailsSite,
           false
         )
       );
