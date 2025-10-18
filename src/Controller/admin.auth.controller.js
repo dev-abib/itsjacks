@@ -500,7 +500,7 @@ const updateSiteSettings = asyncHandler(async (req, res, next) => {
       title,
       name,
       phoneNumber,
-      systemDetails, // Corrected typo
+      syestemDetails, 
       address,
       email,
       openingHour,
