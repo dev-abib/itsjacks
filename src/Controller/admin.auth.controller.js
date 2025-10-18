@@ -5,7 +5,10 @@ const {
   verifyAdminSessionToken,
   decodeSessionToken,
 } = require("../Helpers/helper");
-const { uploadCloudinary, deleteCloudinaryAsset } = require("../Helpers/uploadCloudinary");
+const {
+  uploadCloudinary,
+  deleteCloudinaryAsset,
+} = require("../Helpers/uploadCloudinary");
 const { Admin } = require("../Schema/admin.schema");
 const { companyAddressModel } = require("../Schema/company.address.schema");
 const { siteSettingModel } = require("../Schema/site.settings.schema");
@@ -30,7 +33,6 @@ const loginAdminController = asyncHandler(async (req, res, next) => {
 
   if (!password)
     return next(new apiError(400, "Password field is required", null, false));
-
 
   const isExistingUser = await Admin.findOne({ email });
   if (!isExistingUser)
@@ -175,7 +177,7 @@ const verifyAdmin = asyncHandler(async (req, res, next) => {
 const updateAdminData = asyncHandler(async (req, res, next) => {
   const { name, email, telephoneNumber } = req.body;
   const profilePicture = req.file;
-  
+
   const decodedData = await decodeSessionToken(req);
 
   if (!decodedData) {
@@ -223,7 +225,6 @@ const updateAdminData = asyncHandler(async (req, res, next) => {
   isExistedAdmin.email = email || isExistedAdmin.email;
 
   const savedAdmin = await isExistedAdmin.save();
-  
 
   const responseData = {
     _id: savedAdmin._id,
@@ -303,24 +304,26 @@ const updateAdminPassword = asyncHandler(async (req, res, next) => {
 
 const updateSocialSiteData = asyncHandler(async (req, res, next) => {
   const { facebook, instagram, youtube, twitter, linkdein } = req.body;
+  console.log(req.body);
 
-  const existinSocailsSite = await socailSiteModel.findOne();
+  const existingSocialSite = await socailSiteModel.findOne();
 
-  if (existinSocailsSite) {
-    (existinSocailsSite.facebook = facebook || existinSocailsSite.facebook),
-      (existinSocailsSite.facebook = instagram || existinSocailsSite.instagram);
-    existinSocailsSite.facebook = youtube || existinSocailsSite.youtube;
-    existinSocailsSite.twitter = twitter || existinSocailsSite.twitter;
-    existinSocailsSite.linkdein = linkdein || existinSocailsSite.linkdein;
-    await existinSocailsSite.save();
+  if (existingSocialSite) {
+    existingSocialSite.facebook = facebook || existingSocialSite.facebook;
+    existingSocialSite.instagram = instagram || existingSocialSite.instagram;
+    existingSocialSite.youtube = youtube || existingSocialSite.youtube;
+    existingSocialSite.twitter = twitter || existingSocialSite.twitter;
+    existingSocialSite.linkdein = linkdein || existingSocialSite.linkdein;
+
+    await existingSocialSite.save();
 
     return res
       .status(200)
       .json(
         new apiSuccess(
           200,
-          "Socail site data updated successfully",
-          existinSocailsSite,
+          "Social site data updated successfully",
+          existingSocialSite,
           false
         )
       );
@@ -340,6 +343,7 @@ const updateSocialSiteData = asyncHandler(async (req, res, next) => {
       new apiSuccess(201, "Smtp settings created successfully", created, false)
     );
 });
+
 
 const getSocialSiteData = asyncHandler(async (req, res, next) => {
   const data = await socailSiteModel.findOne();
@@ -442,12 +446,11 @@ const getCompanyAddressData = asyncHandler(async (req, res, next) => {
 });
 
 const updateSiteSettings = asyncHandler(async (req, res, next) => {
-
   const {
     title,
     name,
     phoneNumber,
-    syestemDetails, 
+    syestemDetails,
     address,
     email,
     openingHour,
@@ -455,8 +458,7 @@ const updateSiteSettings = asyncHandler(async (req, res, next) => {
     infoNumber,
     infoMsg,
     infCompany,
-  } = req.body;  
-
+  } = req.body;
 
   try {
     // Find the existing settings from the database
@@ -500,7 +502,7 @@ const updateSiteSettings = asyncHandler(async (req, res, next) => {
       title,
       name,
       phoneNumber,
-      syestemDetails, 
+      syestemDetails,
       address,
       email,
       openingHour,
@@ -530,7 +532,6 @@ const updateSiteSettings = asyncHandler(async (req, res, next) => {
   }
 });
 
-
 const getSiteSettings = asyncHandler(async (req, res, next) => {
   const data = await siteSettingModel.findOne();
 
@@ -543,7 +544,6 @@ const getSiteSettings = asyncHandler(async (req, res, next) => {
     .json(new apiSuccess(200, "Site settings fetched", data, false));
 });
 
-
 module.exports = {
   loginAdminController,
   verifyAdmin,
@@ -553,7 +553,7 @@ module.exports = {
   updateSocialSiteData,
   getSocialSiteData,
   upInseertCompanyAddress,
-  getCompanyAddressData, 
+  getCompanyAddressData,
   updateSiteSettings,
-  getSiteSettings
+  getSiteSettings,
 };
