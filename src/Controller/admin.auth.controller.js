@@ -442,14 +442,12 @@ const getCompanyAddressData = asyncHandler(async (req, res, next) => {
 });
 
 const updateSiteSettings = asyncHandler(async (req, res, next) => {
-  console.log(req.body); // Ensure the body is properly logged
 
-  // Destructure the required fields from req.body
   const {
     title,
     name,
     phoneNumber,
-    systemDetails, // Corrected typo
+    syestemDetails, 
     address,
     email,
     openingHour,
@@ -457,7 +455,7 @@ const updateSiteSettings = asyncHandler(async (req, res, next) => {
     infoNumber,
     infoMsg,
     infCompany,
-  } = req.body;
+  } = req.body;  
 
 
   try {
@@ -470,8 +468,8 @@ const updateSiteSettings = asyncHandler(async (req, res, next) => {
       existingSettings.name = name || existingSettings.name;
       existingSettings.phoneNumber =
         phoneNumber || existingSettings.phoneNumber;
-      existingSettings.systemDetails =
-        systemDetails || existingSettings.systemDetails;
+      existingSettings.syestemDetails =
+        syestemDetails || existingSettings.syestemDetails;
       existingSettings.address = address || existingSettings.address;
       existingSettings.email = email || existingSettings.email;
       existingSettings.openingHour =
