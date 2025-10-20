@@ -337,6 +337,74 @@ const verifyEmail = asyncHandler(async (req, res, next) => {
   }
 });
 
+
+// resend otp controller
+const resendOtp = asyncHandler(async (req, res, next) => {
+  const { email } = req.body;
+
+  if (!email)
+    return next(new apiError(400, "Email field is required", null, false));
+
+  if (!emailChecker(email))
+    return next(new apiError(400, "Invalid Email format", null, false));
+
+  const isExisteduser = await user.findOne({ email });
+
+  if (!isExisteduser)
+    return next(new apiError(404, "User not found", null, false));
+
+  // check if OTP was sent recently (optional rate limit)
+  if (
+    isExisteduser.otpExpiresAt &&
+    new Date() < new Date(isExisteduser.otpExpiresAt)
+  ) {
+    const remainingMs =
+      new Date(isExisteduser.otpExpiresAt).getTime() - Date.now();
+    if (remainingMs > 60 * 1000) {
+      return next(
+        new apiError(
+          429,
+          "Please wait before requesting another OTP",
+          null,
+          false
+        )
+      );
+    }
+  }
+
+  // generate new otp
+  const otp = await otpGenerator();
+
+  // update user
+  isExisteduser.otp = otp;
+  isExisteduser.otpExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
+  await isExisteduser.save();
+
+  try {
+    await mailSender({
+      type: "otp",
+      name: isExisteduser.fullName || "User",
+      emailAdress: email,
+      subject: "Your New One-Time Password (OTP)",
+      otp,
+    });
+
+    return res.status(200).json(
+      new apiSuccess(
+        200,
+        "New OTP sent successfully",
+        { email },
+        true,
+        null
+      )
+    );
+  } catch (error) {
+    console.error("Resend OTP failed:", error.message);
+    return next(new apiError(500, "Failed to resend OTP email", null, false));
+  }
+});
+
+
 // verify otp controller
 const verifyOtp = asyncHandler(async (req, res, next) => {
   const { email, otp } = req.body;
@@ -550,4 +618,5 @@ module.exports = {
   deleteUserAccount,
   logoutUser,
   verifyAccount,
+  resendOtp,
 };

@@ -12,6 +12,7 @@ const {
   deleteUserAccount,
   logoutUser,
   verifyAccount,
+  resendOtp,
 } = require("../../Controller/user.controller");
 const { uploadImages } = require("../../middleware/multer.middleware");
 const { authguard } = require("../../middleware/authGuard");
@@ -25,7 +26,7 @@ router
   .route("/register")
   .post(uploadImages.single("profilePicture"), registerUserController);
 
-  router.route("/verify-acc").put(verifyAccount);
+router.route("/verify-acc").put(verifyAccount);
 
 // login user
 router.route("/login").post(loginUserController);
@@ -46,6 +47,9 @@ router.route("/verify-email").post(verifyEmail);
 
 // verify email
 router.route("/verify-otp").post(verifyOtp);
+
+// resend otp
+router.route("/resend-otp").put(resendOtp);
 
 router.route("/reset-pass").post(authguard, resetPassword);
 
