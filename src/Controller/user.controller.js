@@ -360,11 +360,11 @@ const resendOtp = asyncHandler(async (req, res, next) => {
   ) {
     const remainingMs =
       new Date(isExisteduser.otpExpiresAt).getTime() - Date.now();
-    if (remainingMs > 60 * 1000) {
+    if (remainingMs > 1 * 60 * 1000) {
       return next(
         new apiError(
           429,
-          "Please wait before requesting another OTP",
+          "Please wait before requesting another OTP (1 minute interval)",
           null,
           false
         )

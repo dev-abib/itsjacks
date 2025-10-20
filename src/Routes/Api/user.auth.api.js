@@ -51,10 +51,13 @@ router.route("/verify-otp").post(verifyOtp);
 // resend otp
 router.route("/resend-otp").put(resendOtp);
 
+// reset password
 router.route("/reset-pass").post(authguard, resetPassword);
 
+// delete account
 router.route("/delete-acc").delete(authguard, deleteUserAccount);
 
+// log out account
 router.route("/log-out").post(authguard, logoutUser);
 
 module.exports = router;
