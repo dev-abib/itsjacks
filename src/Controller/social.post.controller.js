@@ -8,8 +8,8 @@ const {
   uploadCloudinary,
   deleteCloudinaryAsset,
 } = require("../Helpers/uploadCloudinary");
-const webPush = require("web-push");
 const { ObjectId } = require("mongodb");
+const { Notification } = require("../Schema/notification.schema");
 
 /**
  * @desc Create new post
@@ -98,54 +98,48 @@ const toggleLikePost = asyncHandler(async (req, res, next) => {
   const { postId } = req.params;
   const userId = decodedData.userData.userId;
 
-  // Find the post by ID
+  // Find the post by ID, populate the author's data
   const post = await Post.findById(postId).populate("author");
 
   if (!post) return next(new apiError(404, "Post not found", null, false));
 
   const isLiked = post.likes.includes(userId);
+ 
+  const liked_user = await user.findById(userId);
+
+  if (!liked_user)
+    return next(new apiError(404, "User not found", null, false));
 
   // Get the post owner's ID to send the notification to
   const postOwnerId = post.author._id;
 
   if (isLiked) {
-    // If already liked, unlike the post
     post.likes.pull(userId);
     post.likeCount -= 1;
   } else {
-    // If not liked, like the post
     post.likes.push(userId);
     post.likeCount += 1;
+
+    // Create the like notification
+    const notification = new Notification({
+      user: postOwnerId,
+      message: `${liked_user.fullName} liked your post: ${post.description}`,
+      type: "like",
+      post: postId,
+    });
+
+    await notification.save();
+
+    // Emit the notification to the post owner via Socket.IO
+    // req.io.emit("sendNotification", {
+    //   message: notification.message,
+    //   userId: postOwnerId,
+    // });
   }
 
   // Save the updated post
   await post.save();
 
-  // If the user is liking the post, send a notification to the post owner
-  // if (!isLiked) {
-  //   // Find the post owner
-  //   const postOwner = await user.findById(postOwnerId); // Fetch the post owner to send the notification
-  //   if (postOwner && postOwner.notificationToken) {
-  //     const payload = JSON.stringify({
-  //       title: "Post Liked",
-  //       message: `${decodedData.userData.fullName} liked your post!`,
-  //       url: `/posts/${postId}`,
-  //     });
-
-  //     try {
-  //       // Send notification to the post owner
-  //       // await webPush.sendNotification(postOwner.notificationToken, payload);
-  //       console.log(`Notification sent to user ${postOwnerId}`);
-  //     } catch (error) {
-  //       console.error(
-  //         `Failed to send notification to user ${postOwnerId}:`,
-  //         error
-  //       );
-  //     }
-  //   }
-  // }
-
-  // Send the response to the client
   return res
     .status(200)
     .json(
@@ -283,7 +277,6 @@ const rateEvent = asyncHandler(async (req, res, next) => {
   const { rating } = req.body;
   const { id } = req.params;
 
-  // Check if the rating is provided and valid
   if (!rating || !["1", "2", "3", "4", "5"].includes(rating)) {
     return next(
       new apiError(400, "Rating must be between 1 and 5", null, false)
@@ -309,7 +302,6 @@ const rateEvent = asyncHandler(async (req, res, next) => {
     );
   }
 
-  // Check if event has already happened
   const now = new Date();
   if (now < post.createdAt) {
     return next(
@@ -322,7 +314,6 @@ const rateEvent = asyncHandler(async (req, res, next) => {
     );
   }
 
-  // Check if the user has already rated this event
   const existingRatingIndex = post.ratingInfo.findIndex(
     (ratingObj) =>
       ratingObj.user.toString() === decodedData.userData.userId.toString()
@@ -349,6 +340,24 @@ const rateEvent = asyncHandler(async (req, res, next) => {
 
   // Save updated post
   await post.save();
+
+  // Create the rate event notification
+  const postOwnerId = post.author._id;
+  const User = await user.findById(decodedData.userData.userId); // Get user info
+
+  const notification = new Notification({
+    user: postOwnerId,
+    message: `${User.fullName} rated your event "${post.description}" with a rating of ${rating}.`,
+    type: "event-reminder",
+    post: id,
+  });
+
+  await notification.save();
+
+  // io.emit("sendNotification", {
+  //   message: notification.message,
+  //   userId: postOwnerId,
+  // });
 
   return res
     .status(200)
@@ -680,7 +689,6 @@ const updatePostEvent = asyncHandler(async (req, res, next) => {
     );
   }
 
-
   isExistedPost.description = description || isExistedPost.description;
   isExistedPost.postType = postType || isExistedPost.postType;
   isExistedPost.images = uploadedImages.length > 0 ? uploadedImages : oldImages;
@@ -692,14 +700,41 @@ const updatePostEvent = asyncHandler(async (req, res, next) => {
     return next(new apiError(500, "Failed to update post", null, false));
   }
 
-
   return res
     .status(200)
     .json(new apiSuccess(200, "Post updated successfully", updatedPost, true));
 });
 
+// get notification controller
+const getNotification = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
 
+  const { userId } = decodedData.userData;
 
+  try {
+    const notifications = await Notification.find({ user: userId })
+      .populate("post", "description")
+      .sort({ createdAt: -1 });
+
+    if (!notifications) {
+      return next(new apiError(404, "No notifications found", null, false));
+    }
+
+    return res
+      .status(200)
+      .json(
+        new apiSuccess(
+          200,
+          "Notifications fetched successfully",
+          notifications,
+          true
+        )
+      );
+  } catch (error) {
+    return next(new apiError(500, "Internal Server Error", null, false));
+  }
+});
 
 module.exports = {
   createPost,
@@ -714,4 +749,5 @@ module.exports = {
   getMySavedEventTime,
   deletePostEvent,
   updatePostEvent,
+  getNotification,
 };
