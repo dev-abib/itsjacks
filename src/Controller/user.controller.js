@@ -89,7 +89,6 @@ const registerUserController = asyncHandler(async (req, res, next) => {
     name: savedUser.name,
     email: savedUser.email,
     role: savedUser.role,
-    token,
   };
 
   const otp = await otpGenerator();
@@ -141,6 +140,8 @@ const verifyAccount = asyncHandler(async (req, res, next) => {
   if (!isExisteduser)
     return next(new apiError(404, "User not found", null, false));
 
+
+    console.log(otp, isExisteduser.otp, "thsiis the ot");
 
   if (isExisteduser.otp !== otp)
     return next(new apiError(400, "Invalid OTP", null, false));
@@ -407,7 +408,7 @@ const resendOtp = asyncHandler(async (req, res, next) => {
 
 // verify otp controller
 const verifyOtp = asyncHandler(async (req, res, next) => {
-  const { email, otp } = req.body;
+  const { email, otp } = req.body;  
 
   if (!email)
     return next(new apiError(400, "Email field is required", null, false));
