@@ -13,6 +13,8 @@ const {
   getMyEvents,
   saveEventTime,
   getMySavedEventTime,
+  deletePostEvent,
+  updatePostEvent,
 } = require("../../Controller/social.post.controller");
 
 const router = express.Router();
@@ -21,6 +23,9 @@ const router = express.Router();
 router
   .route("/create-post")
   .post(authguard, uploadImages.array("images", 5), createPost);
+
+// Create post (multiple images allowed)
+router.route("/delete-post/:postId").delete(authguard, deletePostEvent);  
 
 // Like / Unlike post
 router.route("/:postId/like-unlike").put(authguard, toggleLikePost);
@@ -48,5 +53,10 @@ router.route("/get-my-events").get(authguard, getMyEvents);
 
 // get my saved events
 router.route("/get-my-saved-events").get(authguard, getMySavedEventTime);
+
+// update post/events
+router
+  .route("/update-event/:postId")
+  .put(authguard, uploadImages.array("images", 5), updatePostEvent);
 
 module.exports = router;

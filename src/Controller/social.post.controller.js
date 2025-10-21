@@ -4,8 +4,12 @@ const { asyncHandler } = require("../Utils/asyncHandler");
 const { apiError } = require("../Utils/api.error");
 const { apiSuccess } = require("../Utils/api.success");
 const { decodeSessionToken } = require("../Helpers/helper");
-const { uploadCloudinary } = require("../Helpers/uploadCloudinary");
+const {
+  uploadCloudinary,
+  deleteCloudinaryAsset,
+} = require("../Helpers/uploadCloudinary");
 const webPush = require("web-push");
+const { ObjectId } = require("mongodb");
 
 /**
  * @desc Create new post
@@ -95,14 +99,14 @@ const toggleLikePost = asyncHandler(async (req, res, next) => {
   const userId = decodedData.userData.userId;
 
   // Find the post by ID
-  const post = await Post.findById(postId).populate("author"); 
+  const post = await Post.findById(postId).populate("author");
 
   if (!post) return next(new apiError(404, "Post not found", null, false));
 
   const isLiked = post.likes.includes(userId);
 
   // Get the post owner's ID to send the notification to
-  const postOwnerId = post.author._id; 
+  const postOwnerId = post.author._id;
 
   if (isLiked) {
     // If already liked, unlike the post
@@ -220,6 +224,7 @@ const getAllPosts = asyncHandler(async (req, res, next) => {
   );
 });
 
+// get my posts controller
 const getMyPosts = asyncHandler(async (req, res, next) => {
   let decodedData;
   try {
@@ -272,6 +277,7 @@ const getMyPosts = asyncHandler(async (req, res, next) => {
   );
 });
 
+// rate event controller
 const rateEvent = asyncHandler(async (req, res, next) => {
   let decodedData;
   const { rating } = req.body;
@@ -349,6 +355,7 @@ const rateEvent = asyncHandler(async (req, res, next) => {
     .json(new apiSuccess(200, "Rating added successfully", post, true));
 });
 
+// get events controller
 const getEvents = asyncHandler(async (req, res, next) => {
   let decodedData;
   const { isOld } = req.query;
@@ -403,6 +410,7 @@ const getEvents = asyncHandler(async (req, res, next) => {
     );
 });
 
+// get my events controller
 const getMyEvents = asyncHandler(async (req, res, next) => {
   let decodedData;
   try {
@@ -457,6 +465,7 @@ const getMyEvents = asyncHandler(async (req, res, next) => {
   );
 });
 
+// save event controller
 const saveEventTime = asyncHandler(async (req, res, next) => {
   let decodedData;
   try {
@@ -497,6 +506,7 @@ const saveEventTime = asyncHandler(async (req, res, next) => {
     );
 });
 
+// get my saved event time controller
 const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   let decodedData;
   try {
@@ -517,7 +527,6 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
     eventDate: event.eventTime.toISOString().split("T")[0],
   }));
 
-
   res
     .status(200)
     .json(
@@ -530,6 +539,168 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
     );
 });
 
+// delete post / event
+const deletePostEvent = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
+
+  const { role, userId } = decodedData?.userData;
+  const { postId } = req.params;
+
+  // Find the post in the database
+  const isExistedPost = await Post.findById(postId);
+  if (!isExistedPost) {
+    return next(new apiError(404, "Post not found", null, false));
+  }
+
+  // Validate ObjectId format
+  if (!ObjectId.isValid(isExistedPost.author) || !ObjectId.isValid(userId)) {
+    return next(new apiError(400, "Invalid ObjectId format", null, false));
+  }
+
+  // Check if the post author is the same as the user trying to delete it
+  if (isExistedPost.author.toString() !== userId.toString()) {
+    console.log(isExistedPost.author, userId, "let's match it");
+    return next(new apiError(401, "You can't delete this post", null, false));
+  }
+
+  // If the post has images, delete them from Cloudinary
+  if (isExistedPost.images && isExistedPost.images.length > 0) {
+    try {
+      for (const imageUrl of isExistedPost.images) {
+        const result = await deleteCloudinaryAsset(imageUrl);
+        console.log("Image deleted from Cloudinary:", result);
+      }
+    } catch (err) {
+      console.error("Failed to delete images from Cloudinary:", err);
+      return next(
+        new apiError(500, "Failed to delete post images", null, false)
+      );
+    }
+  }
+
+  // Delete the post from the database
+  await Post.findByIdAndDelete(postId);
+
+  // Return success response
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Post deleted successfully", null, true));
+});
+
+// update post / event
+const updatePostEvent = asyncHandler(async (req, res, next) => {
+  const { description, eventTime, postType } = req.body;
+  const files = req.files;
+
+  // Decode session token
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
+
+  const { role, userId } = decodedData?.userData;
+  const { postId } = req.params;
+
+  // Find the post in the database
+  const isExistedPost = await Post.findById(postId);
+  if (!isExistedPost) {
+    return next(new apiError(404, "Post not found", null, false));
+  }
+
+  // Validate ObjectId format
+  if (!ObjectId.isValid(isExistedPost.author) || !ObjectId.isValid(userId)) {
+    return next(new apiError(400, "Invalid ObjectId format", null, false));
+  }
+
+  // Check if the post author is the same as the user trying to update it
+  if (isExistedPost.author.toString() !== userId.toString()) {
+    return next(new apiError(401, "You can't update this post", null, false));
+  }
+
+  if (postType) {
+    // Validate post type
+    if (!["community-post", "event"].includes(postType)) {
+      return next(new apiError(400, "Invalid post type", null, false));
+    }
+  }
+
+  // Only creators can update event posts
+  if (role !== "creator" && postType === "event") {
+    return next(
+      new apiError(400, "Only a creator can update an event post", null, false)
+    );
+  }
+
+  // Validate eventTime
+  if (postType === "event") {
+    const parsedEventTime = new Date(eventTime);
+    if (isNaN(parsedEventTime)) {
+      return next(
+        new apiError(400, "Invalid event time provided.", null, false)
+      );
+    }
+    isExistedPost.eventTime = parsedEventTime;
+  } else {
+    isExistedPost.eventTime = null;
+  }
+
+  // Handle image upload to Cloudinary (if any new images are uploaded)
+  let uploadedImages = isExistedPost.images || [];
+  const oldImages = isExistedPost.images || [];
+
+  // If new files are uploaded, delete old images from Cloudinary and update the database
+  if (files && files.length > 0) {
+    try {
+      // First, delete old images from Cloudinary
+      for (const imageUrl of oldImages) {
+        const result = await deleteCloudinaryAsset(imageUrl);
+        console.log("Old image deleted from Cloudinary:", result);
+
+        // Rebuild the images array without the deleted image
+        uploadedImages = uploadedImages.filter((image) => image !== imageUrl);
+      }
+
+      // Upload new images to Cloudinary
+      for (const file of files) {
+        const uploadResult = await uploadCloudinary(file.buffer, "postImages");
+        if (uploadResult?.secure_url) {
+          uploadedImages.push(uploadResult.secure_url);
+        }
+      }
+    } catch (err) {
+      console.error("Cloudinary upload error:", err);
+      return next(
+        new apiError(500, "Failed to upload post images", null, false)
+      );
+    }
+  }
+
+  if (uploadedImages.length === 0 && oldImages.length === 0) {
+    return next(
+      new apiError(400, "At least one image is required", null, false)
+    );
+  }
+
+
+  isExistedPost.description = description || isExistedPost.description;
+  isExistedPost.postType = postType || isExistedPost.postType;
+  isExistedPost.images = uploadedImages.length > 0 ? uploadedImages : oldImages;
+
+  // Save the post with the updated images
+  const updatedPost = await isExistedPost.save();
+
+  if (!updatedPost) {
+    return next(new apiError(500, "Failed to update post", null, false));
+  }
+
+
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Post updated successfully", updatedPost, true));
+});
+
+
+
+
 module.exports = {
   createPost,
   toggleLikePost,
@@ -541,5 +712,6 @@ module.exports = {
   getMyEvents,
   saveEventTime,
   getMySavedEventTime,
-
+  deletePostEvent,
+  updatePostEvent,
 };
