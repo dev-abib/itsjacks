@@ -24,9 +24,11 @@ const userSchema = new Schema(
     },
     isVerifiedAccount: {
       type: Boolean,
+      default: false,
     },
     isOtpVerified: {
-      type: Boolean
+      type: Boolean,
+      default: false,
     },
     otp: {
       type: String,
@@ -42,6 +44,7 @@ const userSchema = new Schema(
     },
     profilePicture: {
       type: String,
+      default: null,
     },
   },
   {
@@ -52,5 +55,5 @@ const userSchema = new Schema(
 const user = models.user || model("user", userSchema);
 
 module.exports = {
-  user
-}
+  user,
+};
