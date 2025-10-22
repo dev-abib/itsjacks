@@ -100,30 +100,27 @@ const toggleLikePost = asyncHandler(async (req, res, next) => {
 
   // Find the post by ID, populate the author's data
   const post = await Post.findById(postId).populate("author");
-
   if (!post) return next(new apiError(404, "Post not found", null, false));
 
   const isLiked = post.likes.includes(userId);
- 
-  const liked_user = await user.findById(userId);
 
-  if (!liked_user)
-    return next(new apiError(404, "User not found", null, false));
+  const likedUser = await user.findById(userId);
+  if (!likedUser) return next(new apiError(404, "User not found", null, false));
 
   // Get the post owner's ID to send the notification to
   const postOwnerId = post.author._id;
 
   if (isLiked) {
-    post.likes.pull(userId);
+    post.likes.pull(userId); // Remove the like
     post.likeCount -= 1;
   } else {
-    post.likes.push(userId);
+    post.likes.push(userId); // Add the like
     post.likeCount += 1;
 
     // Create the like notification
     const notification = new Notification({
-      user: postOwnerId,
-      message: `${liked_user.fullName} liked your post: ${post.description}`,
+      user: postOwnerId, // The user who will receive the notification
+      message: `${likedUser.fullName} liked your post: ${post.description}`,
       type: "like",
       post: postId,
     });
@@ -131,10 +128,10 @@ const toggleLikePost = asyncHandler(async (req, res, next) => {
     await notification.save();
 
     // Emit the notification to the post owner via Socket.IO
-    // req.io.emit("sendNotification", {
-    //   message: notification.message,
-    //   userId: postOwnerId,
-    // });
+    if (req.io && req.io.users && req.io.users[postOwnerId]) {
+      const userSocketId = req.io.users[postOwnerId]; 
+      req.io.to(userSocketId).emit("notification", notification.message); 
+    }
   }
 
   // Save the updated post
@@ -151,6 +148,7 @@ const toggleLikePost = asyncHandler(async (req, res, next) => {
       )
     );
 });
+
 
 /**
  * @desc Increment share count
@@ -277,12 +275,14 @@ const rateEvent = asyncHandler(async (req, res, next) => {
   const { rating } = req.body;
   const { id } = req.params;
 
+  // Validate the rating input
   if (!rating || !["1", "2", "3", "4", "5"].includes(rating)) {
     return next(
       new apiError(400, "Rating must be between 1 and 5", null, false)
     );
   }
 
+  // Decode session token to get the user ID
   try {
     decodedData = await decodeSessionToken(req);
   } catch (error) {
@@ -302,6 +302,7 @@ const rateEvent = asyncHandler(async (req, res, next) => {
     );
   }
 
+  // Check if the event has started
   const now = new Date();
   if (now < post.createdAt) {
     return next(
@@ -314,6 +315,7 @@ const rateEvent = asyncHandler(async (req, res, next) => {
     );
   }
 
+  // Check if the user has already rated the event
   const existingRatingIndex = post.ratingInfo.findIndex(
     (ratingObj) =>
       ratingObj.user.toString() === decodedData.userData.userId.toString()
@@ -330,7 +332,7 @@ const rateEvent = asyncHandler(async (req, res, next) => {
     });
   }
 
-  // Recalculate approximate rating (average)
+  // Recalculate the approximate rating (average)
   const totalRatings = post.ratingInfo.length;
   const sumRatings = post.ratingInfo.reduce(
     (sum, ratingObj) => sum + parseInt(ratingObj.rating),
@@ -338,31 +340,34 @@ const rateEvent = asyncHandler(async (req, res, next) => {
   );
   post.approxRating = sumRatings / totalRatings;
 
-  // Save updated post
+  // Save the updated post
   await post.save();
 
   // Create the rate event notification
   const postOwnerId = post.author._id;
-  const User = await user.findById(decodedData.userData.userId); // Get user info
+  const User = await user.findById(decodedData.userData.userId); 
 
   const notification = new Notification({
     user: postOwnerId,
     message: `${User.fullName} rated your event "${post.description}" with a rating of ${rating}.`,
-    type: "event-reminder",
+    type: "event-rating",
     post: id,
   });
 
   await notification.save();
 
-  // io.emit("sendNotification", {
-  //   message: notification.message,
-  //   userId: postOwnerId,
-  // });
+  // Emit the notification to the post owner using Socket.IO
+  if (req.io && req.io.users && req.io.users[postOwnerId]) {
+    const userSocketId = req.io.users[postOwnerId]; 
+    req.io.to(userSocketId).emit("notification", notification.message);
+  }
 
+  // Return success response
   return res
     .status(200)
     .json(new apiSuccess(200, "Rating added successfully", post, true));
 });
+
 
 // get events controller
 const getEvents = asyncHandler(async (req, res, next) => {

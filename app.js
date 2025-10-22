@@ -7,7 +7,8 @@ const bodyParser = require("body-parser");
 const http = require("http");
 const socketIo = require("socket.io");
 
-const allRoutes = require("./src/Routes/index");
+const allRoutes = require("./src/Routes/index"); // Your routes file
+const { user } = require("./src/Schema/user.schema");
 const app = express();
 const PORT = process.env.PORT || 8000;
 
@@ -23,15 +24,13 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 app.use(cookieParser());
 app.use(bodyParser.json());
 app.use(helmet());
-
-// CORS setup
 app.use(
   cors({
     origin: [
       "http://localhost:5173",
       "http://localhost:5174",
       "https://itsjacks-dashboard.vercel.app",
-    ],
+    ], // Allowed origins
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true,
   })
@@ -39,42 +38,38 @@ app.use(
 
 // Rate limiter setup
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
   message: "Too many requests from this IP, please try again later.",
 });
 app.use(limiter);
 
-// Static files setup
+// Static files setup (optional)
 app.use("/public", express.static("public"));
 
-// Routes
-app.use(allRoutes);
-
-// Socket.IO connection handling (Place this code below the above setup)
-const users = {}; 
-
+// Passing the io object to all routes
 app.use((req, res, next) => {
-  req.io = io;
+  req.io = io; // Add io to the request object so that it's available in routes
   next();
 });
+
+// Use all your routes here
+app.use(allRoutes);
+
+// Socket.IO setup for user connections
+const users = {}; // Store socket ids mapped to user IDs
 
 io.on("connection", (socket) => {
   console.log("A user connected");
 
-  // Store the socket ID and associated user when the user logs in
+  // Register user when they log in
   socket.on("register", (userId) => {
     users[userId] = socket.id;
+    console.log(user[userId]= socket.id);
+    
   });
 
-  // Handle notifications: send to specific user
-  socket.on("sendNotification", (data) => {
-    const { message, userId } = data;
-    if (users[userId]) {
-      io.to(users[userId]).emit("notification", message);
-    }
-  });
-
+  // Handle disconnections
   socket.on("disconnect", () => {
     console.log("A user disconnected");
     for (let userId in users) {
@@ -97,9 +92,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-
+// Export io so it can be used in other parts of the app
+module.exports = { io };
 
 // Start the server
-server.listen(PORT, "0.0.0.0", () => {
+server.listen(PORT, () => {
   console.log(`✅ Listening on http://localhost:${PORT}`);
 });
