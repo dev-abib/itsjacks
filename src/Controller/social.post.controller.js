@@ -375,7 +375,7 @@ const rateEvent = asyncHandler(async (req, res, next) => {
   const notification = new Notification({
     user: postOwnerId,
     message: `${User.fullName} rated your event "${post.description}" with a rating of ${rating}.`,
-    type: "event-rating",
+    type: "rating",
     post: id,
   });
 
