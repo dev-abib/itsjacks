@@ -297,13 +297,13 @@ const getMyPosts = asyncHandler(async (req, res, next) => {
 // rate event controller
 const rateEvent = asyncHandler(async (req, res, next) => {
   let decodedData;
-  const { rating } = req.body;
+  const { rating } = req.body; // Rating can be a decimal like 4.1, 4.5, etc.
   const { id } = req.params;
 
-  // Validate the rating input
-  if (!rating || !["1", "2", "3", "4", "5"].includes(rating)) {
+  // Validate the rating input to allow decimal numbers between 1 and 5
+  if (!rating || isNaN(rating) || rating < 1 || rating > 5) {
     return next(
-      new apiError(400, "Rating must be between 1 and 5", null, false)
+      new apiError(400, "Rating must be a number between 1 and 5", null, false)
     );
   }
 
@@ -357,10 +357,10 @@ const rateEvent = asyncHandler(async (req, res, next) => {
     });
   }
 
-  // Recalculate the approximate rating (average)
+  // Recalculate the approximate rating (average) considering decimal values
   const totalRatings = post.ratingInfo.length;
   const sumRatings = post.ratingInfo.reduce(
-    (sum, ratingObj) => sum + parseInt(ratingObj.rating),
+    (sum, ratingObj) => sum + parseFloat(ratingObj.rating), // Ensure we're using floating-point values
     0
   );
   post.approxRating = sumRatings / totalRatings;
@@ -392,6 +392,7 @@ const rateEvent = asyncHandler(async (req, res, next) => {
     .status(200)
     .json(new apiSuccess(200, "Rating added successfully", post, true));
 });
+
 
 // get events controller
 const getEvents = asyncHandler(async (req, res, next) => {

@@ -13,6 +13,7 @@ const {
   deleteCloudinaryAsset,
 } = require("../Helpers/uploadCloudinary");
 const { Admin } = require("../Schema/admin.schema");
+const { Post } = require("../Schema/post.schema");
 const { user } = require("../Schema/user.schema");
 
 const { apiError } = require("../Utils/api.error");
@@ -235,6 +236,31 @@ const getUserData = asyncHandler(async (req, res, next) => {
   if (!isExistingUser)
     return next(new apiError(404, "User not found", null, false));
 
+  // Fetch all posts (events) created by the user
+  const posts = await Post.find({ author: decodedData.userData.userId });
+
+  // Calculate the sum of ratings for the posts
+  let totalRatings = 0;
+  let totalRatingsCount = 0;
+
+  posts.forEach((post) => {
+    totalRatingsCount += post.ratingInfo.length;
+    totalRatings += post.ratingInfo.reduce(
+      (ratingSum, ratingObj) => ratingSum + parseFloat(ratingObj.rating), // Use parseFloat here for decimals
+      0
+    );
+  });
+
+  // Calculate the average rating
+  let averageRating = 0;
+  if (totalRatingsCount > 0) {
+    averageRating = totalRatings / totalRatingsCount; // This will give you a decimal result
+  }
+
+  // Update the creator rating on the user document
+  isExistingUser.creator_rating = averageRating; // Keep it as a float
+  await isExistingUser.save();
+
   const { password, resetToken, refreshToken, ...safeUserData } =
     isExistingUser.toObject();
 
@@ -244,7 +270,7 @@ const getUserData = asyncHandler(async (req, res, next) => {
       new apiSuccess(
         200,
         "Successfully retrieved user",
-        safeUserData,
+        { ...safeUserData, creator_rating: isExistingUser.creator_rating },
         true,
         null
       )

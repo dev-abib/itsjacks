@@ -46,6 +46,10 @@ const userSchema = new Schema(
       type: String,
       default: null,
     },
+    creator_rating: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,
