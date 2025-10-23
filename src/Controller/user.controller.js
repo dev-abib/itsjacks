@@ -20,7 +20,6 @@ const { apiSuccess } = require("../Utils/api.success");
 const { asyncHandler } = require("../Utils/asyncHandler");
 const { emailChecker, passwordChecker } = require("../Utils/check");
 
-
 // register user controller
 const registerUserController = asyncHandler(async (req, res, next) => {
   const { fullName, email, role, password, confirmPassword } = req.body;
@@ -140,15 +139,13 @@ const verifyAccount = asyncHandler(async (req, res, next) => {
   if (!isExisteduser)
     return next(new apiError(404, "User not found", null, false));
 
-
-    console.log(otp, isExisteduser.otp, "thsiis the ot");
+  console.log(otp, isExisteduser.otp, "thsiis the ot");
 
   if (isExisteduser.otp !== otp)
     return next(new apiError(400, "Invalid OTP", null, false));
 
   if (new Date() > isExisteduser.otpExpiresAt)
     return next(new apiError(400, "OTP expired", null, false));
-
 
   isExisteduser.refreshToken = null;
   isExisteduser.otp = null;
@@ -275,8 +272,6 @@ const changePassword = asyncHandler(async (req, res, next) => {
         false
       )
     );
-  if (password !== prevPassword)
-    return next(new apiError(400, "Passwords do not match", null, false));
 
   const isExisteduser = await user.findById(decodedData.userData.userId);
   if (!user) return next(new apiError(404, "User not found", null, false));
@@ -338,7 +333,6 @@ const verifyEmail = asyncHandler(async (req, res, next) => {
   }
 });
 
-
 // resend otp controller
 const resendOtp = asyncHandler(async (req, res, next) => {
   const { email } = req.body;
@@ -390,25 +384,20 @@ const resendOtp = asyncHandler(async (req, res, next) => {
       otp,
     });
 
-    return res.status(200).json(
-      new apiSuccess(
-        200,
-        "New OTP sent successfully",
-        { email },
-        true,
-        null
-      )
-    );
+    return res
+      .status(200)
+      .json(
+        new apiSuccess(200, "New OTP sent successfully", { email }, true, null)
+      );
   } catch (error) {
     console.error("Resend OTP failed:", error.message);
     return next(new apiError(500, "Failed to resend OTP email", null, false));
   }
 });
 
-
 // verify otp controller
 const verifyOtp = asyncHandler(async (req, res, next) => {
-  const { email, otp } = req.body;  
+  const { email, otp } = req.body;
 
   if (!email)
     return next(new apiError(400, "Email field is required", null, false));

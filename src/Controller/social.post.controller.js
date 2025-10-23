@@ -129,8 +129,8 @@ const toggleLikePost = asyncHandler(async (req, res, next) => {
 
     // Emit the notification to the post owner via Socket.IO
     if (req.io && req.io.users && req.io.users[postOwnerId]) {
-      const userSocketId = req.io.users[postOwnerId]; 
-      req.io.to(userSocketId).emit("notification", notification.message); 
+      const userSocketId = req.io.users[postOwnerId];
+      req.io.to(userSocketId).emit("notification", notification.message);
     }
   }
 
@@ -148,7 +148,6 @@ const toggleLikePost = asyncHandler(async (req, res, next) => {
       )
     );
 });
-
 
 /**
  * @desc Increment share count
@@ -178,6 +177,11 @@ const incrementShareCount = asyncHandler(async (req, res, next) => {
  * @desc Get all posts
  */
 const getAllPosts = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
+
+  const userId = decodedData.userData.userId;
+
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const limit = Math.min(parseInt(req.query.limit) || 10, 100);
   const skip = (page - 1) * limit;
@@ -191,6 +195,16 @@ const getAllPosts = asyncHandler(async (req, res, next) => {
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
+
+  const postsWithLikeStatus = posts.map((post) => {
+    const likedByUser = post.likes.includes(userId);
+    const isLiked = likedByUser ? true : false;
+
+    return {
+      ...post.toObject(),
+      isLiked,
+    };
+  });
 
   const pagination = {
     currentPage: page,
@@ -208,7 +222,7 @@ const getAllPosts = asyncHandler(async (req, res, next) => {
       200,
       "Posts fetched successfully",
       {
-        posts,
+        posts: postsWithLikeStatus,
         pagination,
       },
       true
@@ -245,6 +259,17 @@ const getMyPosts = asyncHandler(async (req, res, next) => {
     .skip(skip)
     .limit(limit);
 
+  // Add `isLiked` field to each post to indicate if the user liked the post
+  const myPostsWithLikeStatus = myPosts.map((post) => {
+    const likedByUser = post.likes.includes(userId); // Check if user has liked the post
+    const isLiked = likedByUser ? true : false; // Define isLiked
+
+    return {
+      ...post.toObject(),
+      isLiked,
+    };
+  });
+
   const pagination = {
     currentPage: page,
     limit,
@@ -261,7 +286,7 @@ const getMyPosts = asyncHandler(async (req, res, next) => {
       200,
       "Posts fetched successfully",
       {
-        myPosts,
+        myPosts: myPostsWithLikeStatus,
         pagination,
       },
       true
@@ -345,7 +370,7 @@ const rateEvent = asyncHandler(async (req, res, next) => {
 
   // Create the rate event notification
   const postOwnerId = post.author._id;
-  const User = await user.findById(decodedData.userData.userId); 
+  const User = await user.findById(decodedData.userData.userId);
 
   const notification = new Notification({
     user: postOwnerId,
@@ -358,7 +383,7 @@ const rateEvent = asyncHandler(async (req, res, next) => {
 
   // Emit the notification to the post owner using Socket.IO
   if (req.io && req.io.users && req.io.users[postOwnerId]) {
-    const userSocketId = req.io.users[postOwnerId]; 
+    const userSocketId = req.io.users[postOwnerId];
     req.io.to(userSocketId).emit("notification", notification.message);
   }
 
@@ -367,7 +392,6 @@ const rateEvent = asyncHandler(async (req, res, next) => {
     .status(200)
     .json(new apiSuccess(200, "Rating added successfully", post, true));
 });
-
 
 // get events controller
 const getEvents = asyncHandler(async (req, res, next) => {
@@ -383,6 +407,7 @@ const getEvents = asyncHandler(async (req, res, next) => {
     return next(new apiError(401, "Unauthorized", null, false));
   }
 
+  const userId = decodedData.userData.userId;
   const now = new Date();
 
   let filter = { postType: "event" };
@@ -401,6 +426,16 @@ const getEvents = asyncHandler(async (req, res, next) => {
     .skip(skip)
     .limit(limit);
 
+  const eventsWithLikeStatus = events.map((event) => {
+    const likedByUser = event.likes.includes(userId);
+    const isLiked = likedByUser ? true : false;
+
+    return {
+      ...event.toObject(),
+      isLiked,
+    };
+  });
+
   const pagination = {
     currentPage: page,
     limit,
@@ -418,7 +453,7 @@ const getEvents = asyncHandler(async (req, res, next) => {
       new apiSuccess(
         200,
         "Events fetched successfully",
-        { events, pagination },
+        { events: eventsWithLikeStatus, pagination },
         true
       )
     );
@@ -455,6 +490,16 @@ const getMyEvents = asyncHandler(async (req, res, next) => {
     .skip(skip)
     .limit(limit);
 
+  const myPostsWithLikeStatus = myPosts.map((event) => {
+    const likedByUser = event.likes.includes(userId);
+    const isLiked = likedByUser ? true : false;
+
+    return {
+      ...event.toObject(),
+      isLiked, // Add the isLiked field
+    };
+  });
+
   const pagination = {
     currentPage: page,
     limit,
@@ -471,7 +516,7 @@ const getMyEvents = asyncHandler(async (req, res, next) => {
       200,
       "Events fetched successfully",
       {
-        myPosts,
+        myPosts: myPostsWithLikeStatus,
         pagination,
       },
       true
