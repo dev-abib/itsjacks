@@ -297,7 +297,7 @@ const getMyPosts = asyncHandler(async (req, res, next) => {
 // rate event controller
 const rateEvent = asyncHandler(async (req, res, next) => {
   let decodedData;
-  const { rating } = req.body; // Rating can be a decimal like 4.1, 4.5, etc.
+  const { rating } = req.body;
   const { id } = req.params;
 
   // Validate the rating input to allow decimal numbers between 1 and 5
@@ -347,8 +347,9 @@ const rateEvent = asyncHandler(async (req, res, next) => {
   );
 
   if (existingRatingIndex > -1) {
-    // Update existing rating
-    post.ratingInfo[existingRatingIndex].rating = rating;
+    return next(
+      new apiError(400, "You've already rated this event", null, false)
+    );
   } else {
     // Add new rating
     post.ratingInfo.push({
@@ -428,11 +429,15 @@ const getEvents = asyncHandler(async (req, res, next) => {
 
   const eventsWithLikeStatus = events.map((event) => {
     const likedByUser = event.likes.includes(userId);
+    const isRated = event.ratingInfo.some(
+      (rating) => rating.user.toString() === userId.toString()
+    );
     const isLiked = likedByUser ? true : false;
 
     return {
       ...event.toObject(),
       isLiked,
+      isRated,
     };
   });
 
@@ -492,11 +497,15 @@ const getMyEvents = asyncHandler(async (req, res, next) => {
 
   const myPostsWithLikeStatus = myPosts.map((event) => {
     const likedByUser = event.likes.includes(userId);
+    const isRated = event.ratingInfo.some(
+      (rating) => rating.user.toString() === userId.toString()
+    );
     const isLiked = likedByUser ? true : false;
 
     return {
       ...event.toObject(),
-      isLiked, // Add the isLiked field
+      isLiked,
+      isRated,
     };
   });
 
@@ -808,11 +817,15 @@ const getSinglePost = asyncHandler(async (req, res, next) => {
 
   // Check if the post has been liked by the user
   const likedByUser = isExistedPost.likes.includes(userId);
+  const isRated = isExistedPost.ratingInfo.some(
+    (rating) => rating.user.toString() === userId.toString()
+  );
 
   // Add the isLiked status to the post data
   const postWithLikeStatus = {
     ...isExistedPost.toObject(),
     isLiked: likedByUser,
+    isRated,
   };
 
   return res
@@ -826,7 +839,6 @@ const getSinglePost = asyncHandler(async (req, res, next) => {
       )
     );
 });
-
 
 module.exports = {
   createPost,
