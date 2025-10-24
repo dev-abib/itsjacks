@@ -16,6 +16,7 @@ const {
   deletePostEvent,
   updatePostEvent,
   getNotification,
+  getSinglePost,
 } = require("../../Controller/social.post.controller");
 
 const router = express.Router();
@@ -62,5 +63,8 @@ router
 
 // get my notifications
 router.route("/get-notifications").get(authguard, getNotification);
+
+// get single post
+router.route("/single-post/:postId").get(authguard, getSinglePost);
 
 module.exports = router;

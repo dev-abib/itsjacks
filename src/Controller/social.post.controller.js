@@ -393,7 +393,6 @@ const rateEvent = asyncHandler(async (req, res, next) => {
     .json(new apiSuccess(200, "Rating added successfully", post, true));
 });
 
-
 // get events controller
 const getEvents = asyncHandler(async (req, res, next) => {
   let decodedData;
@@ -787,6 +786,48 @@ const getNotification = asyncHandler(async (req, res, next) => {
   }
 });
 
+// get single posts
+const getSinglePost = asyncHandler(async (req, res, next) => {
+  const { postId } = req.params;
+  const decodedData = await decodeSessionToken(req);
+
+  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
+
+  const { userId } = decodedData.userData;
+
+  // Find the post by postId and populate the author field with the user data
+  const isExistedPost = await Post.findById(postId).populate(
+    "author",
+    "fullName email role profilePicture creator_rating"
+  );
+
+  // If post doesn't exist, return an error
+  if (!isExistedPost) {
+    return next(new apiError(404, "Post doesn't exist", null, false));
+  }
+
+  // Check if the post has been liked by the user
+  const likedByUser = isExistedPost.likes.includes(userId);
+
+  // Add the isLiked status to the post data
+  const postWithLikeStatus = {
+    ...isExistedPost.toObject(),
+    isLiked: likedByUser,
+  };
+
+  return res
+    .status(200)
+    .json(
+      new apiSuccess(
+        200,
+        "Single post fetched successfully",
+        postWithLikeStatus,
+        true
+      )
+    );
+});
+
+
 module.exports = {
   createPost,
   toggleLikePost,
@@ -801,4 +842,5 @@ module.exports = {
   deletePostEvent,
   updatePostEvent,
   getNotification,
+  getSinglePost,
 };

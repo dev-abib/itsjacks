@@ -258,7 +258,7 @@ const getUserData = asyncHandler(async (req, res, next) => {
   }
 
   // Update the creator rating on the user document
-  isExistingUser.creator_rating = averageRating; // Keep it as a float
+  isExistingUser.creator_rating = averageRating;
   await isExistingUser.save();
 
   const { password, resetToken, refreshToken, ...safeUserData } =
