@@ -17,6 +17,7 @@ const {
   updatePostEvent,
   getNotification,
   getSinglePost,
+  removeSavedEvent,
 } = require("../../Controller/social.post.controller");
 
 const router = express.Router();
@@ -54,7 +55,7 @@ router.route("/get-all-events").get(authguard, getEvents);
 router.route("/get-my-events").get(authguard, getMyEvents);
 
 // get my saved events
-router.route("/get-my-saved-events").get(authguard, getMySavedEventTime);
+router.route("/get-my-saved-events").post(authguard, getMySavedEventTime);
 
 // update post/events
 router
@@ -66,5 +67,10 @@ router.route("/get-notifications").get(authguard, getNotification);
 
 // get single post
 router.route("/single-post/:postId").get(authguard, getSinglePost);
+
+// remove saved event time
+router
+  .route("/remove-saved-event/:eventId")
+  .delete(authguard, removeSavedEvent);
 
 module.exports = router;

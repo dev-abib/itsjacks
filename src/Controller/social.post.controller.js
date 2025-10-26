@@ -432,12 +432,14 @@ const getEvents = asyncHandler(async (req, res, next) => {
     const isRated = event.ratingInfo.some(
       (rating) => rating.user.toString() === userId.toString()
     );
+    const isSaved = event.savedBy.includes(userId);
     const isLiked = likedByUser ? true : false;
 
     return {
       ...event.toObject(),
       isLiked,
       isRated,
+      isSaved,
     };
   });
 
@@ -500,12 +502,14 @@ const getMyEvents = asyncHandler(async (req, res, next) => {
     const isRated = event.ratingInfo.some(
       (rating) => rating.user.toString() === userId.toString()
     );
+    const isSaved = event.savedBy.includes(userId);
     const isLiked = likedByUser ? true : false;
 
     return {
       ...event.toObject(),
       isLiked,
       isRated,
+      isSaved,
     };
   });
 
@@ -582,28 +586,36 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   } catch (error) {
     return next(new apiError(401, "Unauthorized", null, false));
   }
-
   const userId = decodedData.userData.userId;
 
-  const savedEvents = await Post.find({ savedBy: userId }).select("eventTime");
+  const { date } = req.body;
 
-  if (!savedEvents.length) {
-    return next(new apiError(404, "no saved events currently", null, false));
+  if (!date) {
+    return next(new apiError(400, "Please provide a date", null, false));
   }
 
-  const eventDates = savedEvents.map((event) => ({
-    eventDate: event.eventTime.toISOString().split("T")[0],
-  }));
+  const startOfDay = new Date(date);
+  startOfDay.setHours(0, 0, 0, 0);
+
+  const endOfDay = new Date(date);
+  endOfDay.setHours(23, 59, 59, 999);
+
+  const savedEvents = await Post.find({
+    savedBy: userId,
+    postType: "event",
+    eventTime: { $gte: startOfDay, $lte: endOfDay },
+  }).populate("author", "name email profilePicture");
+
+  if (!savedEvents.length) {
+    return next(
+      new apiError(404, "No saved events found on this date", null, false)
+    );
+  }
 
   res
     .status(200)
     .json(
-      new apiSuccess(
-        200,
-        "All event dates retrive successfully",
-        eventDates,
-        true
-      )
+      new apiSuccess(200, "Events retrieved successfully", savedEvents, true)
     );
 });
 
@@ -612,7 +624,7 @@ const deletePostEvent = asyncHandler(async (req, res, next) => {
   const decodedData = await decodeSessionToken(req);
   if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
 
-  const { role, userId } = decodedData?.userData;
+  const { userId } = decodedData?.userData;
   const { postId } = req.params;
 
   // Find the post in the database
@@ -628,7 +640,6 @@ const deletePostEvent = asyncHandler(async (req, res, next) => {
 
   // Check if the post author is the same as the user trying to delete it
   if (isExistedPost.author.toString() !== userId.toString()) {
-    console.log(isExistedPost.author, userId, "let's match it");
     return next(new apiError(401, "You can't delete this post", null, false));
   }
 
@@ -637,7 +648,6 @@ const deletePostEvent = asyncHandler(async (req, res, next) => {
     try {
       for (const imageUrl of isExistedPost.images) {
         const result = await deleteCloudinaryAsset(imageUrl);
-        console.log("Image deleted from Cloudinary:", result);
       }
     } catch (err) {
       console.error("Failed to delete images from Cloudinary:", err);
@@ -840,6 +850,41 @@ const getSinglePost = asyncHandler(async (req, res, next) => {
     );
 });
 
+const removeSavedEvent = asyncHandler(async (req, res, next) => {
+  let decodedData;
+  try {
+    decodedData = await decodeSessionToken(req);
+  } catch (error) {
+    return next(new apiError(401, "Unauthorized", null, false));
+  }
+  const userId = decodedData.userData.userId;
+  const { eventId } = req.params;
+
+  const isExistedEvent = await Post.findById(eventId);
+
+  if (!isExistedEvent) {
+    return next(new apiError(404, "Event not found", null, false));
+  }
+
+  if (isExistedEvent.postType !== "event") {
+    return next(new apiError(400, "This is not a event"));
+  }
+
+  const isSaved = isExistedEvent.savedBy.includes(userId);
+
+  if (!isSaved) {
+    return next(
+      new apiError(400, `You haven't saved the event yet`, null, false)
+    );
+  }
+
+  isExistedEvent.savedBy.pull(userId);
+
+  await isExistedEvent.save();
+
+  return next(new apiError(200, "Event removed from saved list", null, false));
+});
+
 module.exports = {
   createPost,
   toggleLikePost,
@@ -855,4 +900,5 @@ module.exports = {
   updatePostEvent,
   getNotification,
   getSinglePost,
+  removeSavedEvent,
 };

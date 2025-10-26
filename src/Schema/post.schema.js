@@ -48,6 +48,7 @@ const postSchema = new mongoose.Schema(
     ],
     approxRating: {
       type: Number,
+      default:null
     },
     likes: [
       {

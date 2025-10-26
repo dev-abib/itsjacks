@@ -122,7 +122,6 @@ const registerUserController = asyncHandler(async (req, res, next) => {
 });
 
 // verify account
-
 const verifyAccount = asyncHandler(async (req, res, next) => {
   const { email, otp } = req.body;
 
