@@ -10,6 +10,7 @@ const {
 } = require("../Helpers/uploadCloudinary");
 const { ObjectId } = require("mongodb");
 const { Notification } = require("../Schema/notification.schema");
+const { report } = require("../Schema/report.post.schem");
 
 /**
  * @desc Create new post
@@ -850,6 +851,7 @@ const getSinglePost = asyncHandler(async (req, res, next) => {
     );
 });
 
+// remove saved controller
 const removeSavedEvent = asyncHandler(async (req, res, next) => {
   let decodedData;
   try {
@@ -882,7 +884,47 @@ const removeSavedEvent = asyncHandler(async (req, res, next) => {
 
   await isExistedEvent.save();
 
-  return next(new apiError(200, "Event removed from saved list", null, false));
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Event removed from saved list", null, true));
+});
+
+// report post controller
+const reportPostController = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+
+  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
+
+  const { userId } = decodedData.userData;
+  const { reasons } = req.body;
+
+  const { postId } = req.params;
+
+  if (!postId) {
+    return next(new apiError(400, "post id is required", null, false));
+  }
+
+  if (!reasons) {
+    return next(new apiError(400, "Report reasons is required", null, false));
+  }
+
+  const reportPost = new report({
+    postId: postId,
+    senderId: userId,
+    reasons: reasons,
+  });
+
+  const isSAvedReport = await reportPost.save();
+
+  if (!isSAvedReport) {
+    return next(
+      new apiError(500, "Something went wrong , try again later", null, false)
+    );
+  }
+
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Report submitted successfully", null, true));
 });
 
 module.exports = {
@@ -901,4 +943,5 @@ module.exports = {
   getNotification,
   getSinglePost,
   removeSavedEvent,
+  reportPostController,
 };

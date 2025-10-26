@@ -18,6 +18,7 @@ const {
   getNotification,
   getSinglePost,
   removeSavedEvent,
+  reportPostController,
 } = require("../../Controller/social.post.controller");
 
 const router = express.Router();
@@ -72,5 +73,7 @@ router.route("/single-post/:postId").get(authguard, getSinglePost);
 router
   .route("/remove-saved-event/:eventId")
   .delete(authguard, removeSavedEvent);
+
+router.route("/report-post/:postId").post(authguard, reportPostController);
 
 module.exports = router;
