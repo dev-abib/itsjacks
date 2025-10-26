@@ -605,7 +605,7 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
     savedBy: userId,
     postType: "event",
     eventTime: { $gte: startOfDay, $lte: endOfDay },
-  }).populate("author", "name email profilePicture");
+  }).populate("author", "fullName email profilePicture");
 
   if (!savedEvents.length) {
     return next(
