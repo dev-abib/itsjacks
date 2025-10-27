@@ -669,106 +669,118 @@ const deletePostEvent = asyncHandler(async (req, res, next) => {
 
 // update post / event
 const updatePostEvent = asyncHandler(async (req, res, next) => {
-  const { description, eventTime, postType } = req.body;
+  const { description, eventTime, postType, deleteImages = [] } = req.body;
   const files = req.files;
 
-  // Decode session token
   const decodedData = await decodeSessionToken(req);
   if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
 
   const { role, userId } = decodedData?.userData;
   const { postId } = req.params;
 
-  // Find the post in the database
-  const isExistedPost = await Post.findById(postId);
-  if (!isExistedPost) {
-    return next(new apiError(404, "Post not found", null, false));
+  // Parse deleteImages if string
+  let deleteImagesArray = deleteImages;
+  if (typeof deleteImages === "string") {
+    try {
+      deleteImagesArray = JSON.parse(deleteImages);
+    } catch (err) {
+      return next(
+        new apiError(400, "Invalid deleteImages format", null, false)
+      );
+    }
   }
 
-  // Validate ObjectId format
+  // Find the post
+  const isExistedPost = await Post.findById(postId);
+  if (!isExistedPost)
+    return next(new apiError(404, "Post not found", null, false));
+
+  // Validate ObjectId
   if (!ObjectId.isValid(isExistedPost.author) || !ObjectId.isValid(userId)) {
     return next(new apiError(400, "Invalid ObjectId format", null, false));
   }
 
-  // Check if the post author is the same as the user trying to update it
+  // Permission check
   if (isExistedPost.author.toString() !== userId.toString()) {
     return next(new apiError(401, "You can't update this post", null, false));
   }
 
-  if (postType) {
-    // Validate post type
-    if (!["community-post", "event"].includes(postType)) {
-      return next(new apiError(400, "Invalid post type", null, false));
-    }
+  // Validate postType
+  if (postType && !["community-post", "event"].includes(postType)) {
+    return next(new apiError(400, "Invalid post type", null, false));
   }
-
-  // Only creators can update event posts
   if (role !== "creator" && postType === "event") {
     return next(
       new apiError(400, "Only a creator can update an event post", null, false)
     );
   }
 
-  // Validate eventTime
+  // Handle event time
   if (postType === "event") {
     const parsedEventTime = new Date(eventTime);
-    if (isNaN(parsedEventTime)) {
+    if (isNaN(parsedEventTime))
       return next(
         new apiError(400, "Invalid event time provided.", null, false)
       );
-    }
     isExistedPost.eventTime = parsedEventTime;
   } else {
     isExistedPost.eventTime = null;
   }
 
-  // Handle image upload to Cloudinary (if any new images are uploaded)
-  let uploadedImages = isExistedPost.images || [];
-  const oldImages = isExistedPost.images || [];
+  let updatedImages = [...(isExistedPost.images || [])];
 
-  // If new files are uploaded, delete old images from Cloudinary and update the database
-  if (files && files.length > 0) {
+  // Delete selected images from Cloudinary
+  if (Array.isArray(deleteImagesArray) && deleteImagesArray.length > 0) {
     try {
-      // First, delete old images from Cloudinary
-      for (const imageUrl of oldImages) {
+      for (const imageUrl of deleteImagesArray) {
+        // Reuse your helper: deleteCloudinaryAsset expects full URL
         const result = await deleteCloudinaryAsset(imageUrl);
-        console.log("Old image deleted from Cloudinary:", result);
-
-        // Rebuild the images array without the deleted image
-        uploadedImages = uploadedImages.filter((image) => image !== imageUrl);
-      }
-
-      // Upload new images to Cloudinary
-      for (const file of files) {
-        const uploadResult = await uploadCloudinary(file.buffer, "postImages");
-        if (uploadResult?.secure_url) {
-          uploadedImages.push(uploadResult.secure_url);
-        }
+        // Remove from local images array
+        updatedImages = updatedImages.filter((img) => img !== imageUrl);
       }
     } catch (err) {
-      console.error("Cloudinary upload error:", err);
+      console.error("Error deleting images from Cloudinary:", err);
       return next(
-        new apiError(500, "Failed to upload post images", null, false)
+        new apiError(500, "Failed to delete old images", null, false)
       );
     }
   }
 
-  if (uploadedImages.length === 0 && oldImages.length === 0) {
+  // Upload new files
+  if (files && files.length > 0) {
+    try {
+      for (const file of files) {
+        const uploadResult = await uploadCloudinary(file.buffer, "postImages");
+        if (uploadResult?.secure_url)
+          updatedImages.push(uploadResult.secure_url);
+      }
+    } catch (err) {
+      console.error("Cloudinary upload error:", err);
+      return next(
+        new apiError(500, "Failed to upload new images", null, false)
+      );
+    }
+  }
+
+  // Ensure at least one image remains
+  if (updatedImages.length === 0) {
     return next(
-      new apiError(400, "At least one image is required", null, false)
+      new apiError(
+        400,
+        "At least one image is required for the post",
+        null,
+        false
+      )
     );
   }
 
+  // Update post
   isExistedPost.description = description || isExistedPost.description;
   isExistedPost.postType = postType || isExistedPost.postType;
-  isExistedPost.images = uploadedImages.length > 0 ? uploadedImages : oldImages;
+  isExistedPost.images = updatedImages;
 
-  // Save the post with the updated images
   const updatedPost = await isExistedPost.save();
-
-  if (!updatedPost) {
-    return next(new apiError(500, "Failed to update post", null, false));
-  }
+  console.log("Updated post:", updatedPost);
 
   return res
     .status(200)
