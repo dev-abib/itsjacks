@@ -1,8 +1,6 @@
-const { mailSender } = require("../Helpers/emailSender");
 const {
   createAdminSessionToken,
   verifyPassword,
-  verifyAdminSessionToken,
   decodeSessionToken,
 } = require("../Helpers/helper");
 const {
@@ -11,6 +9,9 @@ const {
 } = require("../Helpers/uploadCloudinary");
 const { Admin } = require("../Schema/admin.schema");
 const { companyAddressModel } = require("../Schema/company.address.schema");
+const { dynamicPageModel } = require("../Schema/dynamic.page.schema");
+const { Post } = require("../Schema/post.schema");
+const { report } = require("../Schema/report.post.schem");
 const { siteSettingModel } = require("../Schema/site.settings.schema");
 const { socailSiteModel } = require("../Schema/social.media.schema");
 const { user } = require("../Schema/user.schema");
@@ -344,7 +345,6 @@ const updateSocialSiteData = asyncHandler(async (req, res, next) => {
     );
 });
 
-
 const getSocialSiteData = asyncHandler(async (req, res, next) => {
   const data = await socailSiteModel.findOne();
 
@@ -544,6 +544,406 @@ const getSiteSettings = asyncHandler(async (req, res, next) => {
     .json(new apiSuccess(200, "Site settings fetched", data, false));
 });
 
+// delete user account
+const adminDeleteUser = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
+
+  // Only admin can delete users
+  const adminId = decodedData?.adminData?.adminId;
+  if (!adminId)
+    return next(new apiError(403, "Forbidden: Admin only", null, false));
+
+  const { userId } = req.params; // The user to delete
+  const isExistedUser = await user.findById(userId);
+  if (!isExistedUser)
+    return next(new apiError(404, "User not found", null, false));
+
+  try {
+    // Delete profile picture
+    if (isExistedUser.profilePicture) {
+      await deleteCloudinaryAsset(isExistedUser.profilePicture);
+    }
+
+    // Delete all posts by this user
+    const userPosts = await Post.find({ author: userId });
+    for (const post of userPosts) {
+      if (post.images && post.images.length > 0) {
+        for (const img of post.images) {
+          await deleteCloudinaryAsset(img);
+        }
+      }
+      await Post.findByIdAndDelete(post._id);
+    }
+
+    // Remove references from other posts
+    await Post.updateMany(
+      {},
+      {
+        $pull: {
+          likes: userId,
+          savedBy: userId,
+          ratingInfo: { user: userId }, // ✅ fixed
+        },
+      }
+    );
+
+    // Delete user account
+    await user.findByIdAndDelete(userId);
+
+    return res
+      .status(200)
+      .json(
+        new apiSuccess(
+          200,
+          "User account and all related data deleted successfully by admin",
+          null,
+          true
+        )
+      );
+  } catch (error) {
+    console.error("Admin deletion error:", error);
+    return next(
+      new apiError(500, "Failed to delete user and related data", null, false)
+    );
+  }
+});
+
+// get all reports
+const getAllReports = asyncHandler(async (req, res, next) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  const search = req.query.search || "";
+  const sortBy = req.query.sortBy || "createdAt";
+  const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
+
+  // Build search filter
+  const searchFilter = {};
+  if (search) {
+    searchFilter.$or = [
+      { reasons: { $regex: search, $options: "i" } },
+      { "senderId.email": { $regex: search, $options: "i" } },
+    ];
+  }
+
+  // Count total reports with search
+  const totalReports = await report.countDocuments(searchFilter);
+
+  // Fetch reports with dynamic sort, populate sender & post
+  const reports = await report
+    .find(searchFilter)
+    .populate({ path: "postId", select: "description author images postType" })
+    .populate({ path: "senderId", select: "name email profilePicture" })
+    .skip(skip)
+    .limit(limit)
+    .sort({ [sortBy]: sortOrder });
+
+  const totalPages = Math.ceil(totalReports / limit);
+
+  return res.status(200).json(
+    new apiSuccess(
+      200,
+      "Successfully retrieved all reports",
+      {
+        reports,
+        pagination: {
+          totalReports,
+          totalPages,
+          currentPage: page,
+          pageSize: limit,
+        },
+      },
+      false
+    )
+  );
+});
+// get user all reports
+const getReportsAgainstUser = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  // Verify the user exists
+  const isExistedUser = await user.findById(userId);
+  if (!isExistedUser) {
+    return next(new apiError(404, "User not found", null, false));
+  }
+
+  // Find all posts authored by this user
+  const userPosts = await Post.find({ author: userId }).select("_id");
+  const postIds = userPosts.map((post) => post._id);
+
+  // Fetch reports against these posts
+  const reports = await report
+    .find({ postId: { $in: postIds } })
+    .populate({ path: "postId", select: "description images postType" })
+    .populate({ path: "senderId", select: "name email profilePicture" })
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 });
+
+  const totalReports = await report.countDocuments({
+    postId: { $in: postIds },
+  });
+  const totalPages = Math.ceil(totalReports / limit);
+
+  return res.status(200).json(
+    new apiSuccess(
+      200,
+      "Successfully retrieved reports submitted against this user",
+      {
+        totalReports,
+        reports,
+        pagination: {
+          totalPages,
+          currentPage: page,
+          pageSize: limit,
+        },
+      },
+      false
+    )
+  );
+});
+
+// delete report
+const deleteReport = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+
+  const reportToDelete = await report.findById(id);
+  if (!reportToDelete)
+    return next(new apiError(404, "Report not found", null, false));
+
+  try {
+    await report.findByIdAndDelete(id);
+
+    return res
+      .status(200)
+      .json(new apiSuccess(200, "Report deleted successfully", null, true));
+  } catch (err) {
+    console.error("Delete report error:", err);
+    return next(new apiError(500, "Failed to delete report", null, false));
+  }
+});
+
+// get all post
+const getAllPosts = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData || !decodedData.adminData?.adminId) {
+    return next(new apiError(401, "Unauthorized: Admin only", null, false));
+  }
+
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+  const skip = (page - 1) * limit;
+  const sortBy = req.query.sortBy || "createdAt";
+  const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
+
+  const filter = {}; // no filtering, fetch all posts
+
+  const totalPosts = await Post.countDocuments(filter);
+
+  const posts = await Post.find(filter)
+    .populate("author", "fullName email profilePicture")
+    .sort({ [sortBy]: sortOrder })
+    .skip(skip)
+    .limit(limit);
+
+  const postsFormatted = posts.map((post) => ({
+    ...post.toObject(),
+    likeCount: post.likes.length,
+    saveCount: post.savedBy.length,
+    ratingCount: post.ratingInfo.length,
+  }));
+
+  const pagination = {
+    currentPage: page,
+    limit,
+    totalPages: Math.ceil(totalPosts / limit),
+    totalPosts,
+    hasNextPage: page * limit < totalPosts,
+    hasPrevPage: page > 1,
+    nextPage: page * limit < totalPosts ? page + 1 : null,
+    prevPage: page > 1 ? page - 1 : null,
+  };
+
+  return res
+    .status(200)
+    .json(
+      new apiSuccess(
+        200,
+        "All posts fetched successfully",
+        { posts: postsFormatted, pagination },
+        true
+      )
+    );
+});
+
+// delete posts
+const deletePost = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData || !decodedData.adminData?.adminId) {
+    return next(new apiError(401, "Unauthorized: Admin only", null, false));
+  }
+
+  const { postId } = req.params;
+  const post = await Post.findById(postId);
+  if (!post) {
+    return next(new apiError(404, "Post not found", null, false));
+  }
+
+  // Delete images from Cloudinary
+  if (post.images && post.images.length > 0) {
+    for (const img of post.images) {
+      try {
+        await deleteCloudinaryAsset(img);
+      } catch (err) {
+        console.error("Failed to delete image from Cloudinary:", err);
+      }
+    }
+  }
+
+  // Delete post from DB
+  await Post.findByIdAndDelete(postId);
+
+  return res
+    .status(200)
+    .json(
+      new apiSuccess(200, "Post deleted successfully by admin", null, true)
+    );
+});
+
+
+// Create a new dynamic page
+const createDynamicPage = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData || !decodedData.adminData?.adminId) {
+    return next(new apiError(401, "Unauthorized: Admin only", null, false));
+  }
+
+  const { pageTitle, pageDescreption } = req.body;
+  if (!pageTitle || !pageDescreption) {
+    return next(new apiError(400, "Title and Description are required", null, false));
+  }
+
+  const newPage = await dynamicPageModel.create({ pageTitle, pageDescreption });
+
+  return res
+    .status(201)
+    .json(new apiSuccess(201, "Dynamic page created successfully", newPage, true));
+});
+
+// Get all dynamic pages with search, sorting, and pagination
+const getAllDynamicPages = asyncHandler(async (req, res, next) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+  const search = req.query.search || "";
+  const sortBy = req.query.sortBy || "createdAt";
+  const sortOrder = req.query.sortOrder === "asc" ? 1 : -1;
+
+  const searchFilter = search
+    ? { pageTitle: { $regex: search, $options: "i" } }
+    : {};
+
+  const totalPagesCount = await dynamicPageModel.countDocuments(searchFilter);
+
+  const pages = await dynamicPageModel
+    .find(searchFilter)
+    .skip(skip)
+    .limit(limit)
+    .sort({ [sortBy]: sortOrder });
+
+  const totalPages = Math.ceil(totalPagesCount / limit);
+
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Dynamic pages retrieved successfully", {
+      pages,
+      pagination: {
+        totalPages: totalPages,
+        currentPage: page,
+        pageSize: limit,
+      },
+    }, true));
+});
+
+// Get a single dynamic page by ID
+const getDynamicPageById = asyncHandler(async (req, res, next) => {
+  const { pageId } = req.params;
+  const page = await dynamicPageModel.findById(pageId);
+  if (!page) {
+    return next(new apiError(404, "Dynamic page not found", null, false));
+  }
+  return res.status(200).json(new apiSuccess(200, "Page retrieved successfully", page, true));
+});
+
+// Update a dynamic page
+const updateDynamicPage = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData || !decodedData.adminData?.adminId) {
+    return next(new apiError(401, "Unauthorized: Admin only", null, false));
+  }
+
+  const { pageId } = req.params;
+  const { pageTitle, pageDescreption } = req.body;
+
+  const page = await dynamicPageModel.findById(pageId);
+  if (!page) {
+    return next(new apiError(404, "Dynamic page not found", null, false));
+  }
+
+  page.pageTitle = pageTitle || page.pageTitle;
+  page.pageDescreption = pageDescreption || page.pageDescreption;
+
+  await page.save();
+
+  return res.status(200).json(new apiSuccess(200, "Dynamic page updated successfully", page, true));
+});
+
+// Delete a dynamic page
+const deleteDynamicPage = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData || !decodedData.adminData?.adminId) {
+    return next(new apiError(401, "Unauthorized: Admin only", null, false));
+  }
+
+  const { pageId } = req.params;
+  const page = await dynamicPageModel.findById(pageId);
+  if (!page) {
+    return next(new apiError(404, "Dynamic page not found", null, false));
+  }
+
+  await dynamicPageModel.findByIdAndDelete(pageId);
+
+  return res.status(200).json(new apiSuccess(200, "Dynamic page deleted successfully", null, true));
+});
+
+const getDynamicPageBySlug = asyncHandler(async (req, res, next) => {
+  const { slug } = req.params;
+
+  // Replace hyphens with spaces to match the title
+  const title = slug.replace(/-/g, " ");
+
+  // Find page by title (case-insensitive)
+  const page = await dynamicPageModel.findOne({
+    pageTitle: new RegExp(`^${title}$`, "i"),
+  });
+
+  if (!page) {
+    return next(new apiError(404, "Dynamic page not found", null, false));
+  }
+
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Page retrieved successfully", { page }, true));
+});
+
+
+
+
 module.exports = {
   loginAdminController,
   verifyAdmin,
@@ -556,4 +956,16 @@ module.exports = {
   getCompanyAddressData,
   updateSiteSettings,
   getSiteSettings,
+  adminDeleteUser,
+  getAllReports,
+  getReportsAgainstUser,
+  deleteReport,
+  getAllPosts,
+  deletePost,
+  createDynamicPage,
+  getAllDynamicPages,
+  getDynamicPageById,
+  updateDynamicPage,
+  deleteDynamicPage,
+  getDynamicPageBySlug,
 };

@@ -1,9 +1,9 @@
 // External dependencies
 const jwt = require("jsonwebtoken");
+const { asyncHandler } = require("../Utils/asyncHandler");
+const { apiError } = require("../Utils/api.error");
 
 // Internal dependencies
-const { apiError } = require("../utils/apiError.js");
-const { asyncHandler } = require("../utils/asyncaHandler.js");
 
 // Admin auth guard middleware
 const adminAuthGuard = asyncHandler(async (req, res, next) => {

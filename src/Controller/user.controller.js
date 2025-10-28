@@ -14,6 +14,7 @@ const {
 } = require("../Helpers/uploadCloudinary");
 const { Admin } = require("../Schema/admin.schema");
 const { Post } = require("../Schema/post.schema");
+const { report } = require("../Schema/report.post.schem");
 const { user } = require("../Schema/user.schema");
 
 const { apiError } = require("../Utils/api.error");
@@ -555,51 +556,63 @@ const updateUser = asyncHandler(async (req, res, next) => {
   );
 });
 
-const deleteUserAccount = asyncHandler(
-  asyncHandler(async (req, res, next) => {
-    const decodedData = await decodeSessionToken(req);
-    if (!decodedData)
-      return next(new apiError(401, "Unauthorized", null, false));
+const deleteUserAccount = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
 
-    const isExisteduser = await user.findById(decodedData?.userData?.userId);
-    if (!isExisteduser)
-      return next(new apiError(404, "User not found", null, false));
+  const userId = decodedData?.userData?.userId;
+  const isExistedUser = await user.findById(userId);
+  if (!isExistedUser)
+    return next(new apiError(404, "User not found", null, false));
 
-    let isDeleted = await deleteCloudinaryAsset(isExisteduser.profilePicture);
-    if (!isDeleted) {
-      return next(
-        new apiError(
-          500,
-          "Can't delete user profile picture , please try agian letter",
-          null,
-          false
-        )
-      );
+  try {
+    if (isExistedUser.profilePicture) {
+      await deleteCloudinaryAsset(isExistedUser.profilePicture);
     }
 
-    const deletedAccount = await user.findByIdAndDelete(
-      decodedData?.userData?.userId
+    const userPosts = await Post.find({ author: userId });
+    for (const post of userPosts) {
+      // Delete post images from Cloudinary
+      if (post.images && post.images.length > 0) {
+        for (const img of post.images) {
+          await deleteCloudinaryAsset(img);
+        }
+      }
+      await Post.findByIdAndDelete(post._id);
+    }
+
+    await Post.updateMany(
+      {},
+      {
+        $pull: {
+          likes: userId,
+          savedBy: userId,
+          "ratingInfo.user": userId,
+        },
+      }
     );
 
-    if (!deletedAccount) {
-      return next(
-        new apiError(
-          500,
-          "Can't delete your account at the moment  , please try agian letter",
-          null,
-          false
-        )
-      );
-    }
+    await user.findByIdAndDelete(userId);
 
     return res
       .status(200)
       .json(
-        new apiSuccess(200, "User account deleted successfully", null, true)
+        new apiSuccess(
+          200,
+          "User account and all related data deleted successfully",
+          null,
+          true
+        )
       );
-  })
-);
+  } catch (error) {
+    console.error("Error deleting user data:", error);
+    return next(
+      new apiError(500, "Failed to delete user and related data", null, false)
+    );
+  }
+});
 
+// log out user
 const logoutUser = asyncHandler(async (req, res, next) => {
   const decodedData = await decodeSessionToken(req);
   if (!decodedData) {
@@ -621,6 +634,94 @@ const logoutUser = asyncHandler(async (req, res, next) => {
     .json(new apiSuccess(200, "Logged out successfully", null, true));
 });
 
+// get single user
+const getSingleuser = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+
+  const isExistedUser = await user.findById(userId);
+
+  if (!isExistedUser) {
+    return next(
+      new apiError(404, "this account didn't exist or removed", null, false)
+    );
+  }
+
+  return res
+    .status(200)
+    .json(
+      new apiSuccess(
+        200,
+        "Successfully retrived user information",
+        isExistedUser,
+        false
+      )
+    );
+});
+
+// get sinlge user all post
+const getUserAllPost = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 10;
+  const skip = (page - 1) * limit;
+
+  // Check if user exists
+  const isExistedUser = await user.findById(userId);
+  if (!isExistedUser) {
+    return next(
+      new apiError(404, "This account didn't exist or removed", null, false)
+    );
+  }
+
+  // Fetch paginated posts
+  const posts = await Post.find({ author: userId })
+    .skip(skip)
+    .limit(limit)
+    .sort({ createdAt: -1 })
+    .lean(); // lean() to get plain JS objects
+
+  // Fetch report info for each post
+  const postIds = posts.map((post) => post._id);
+  const reports = await report.aggregate([
+    { $match: { postId: { $in: postIds } } },
+    { $group: { _id: "$postId", reportCount: { $sum: 1 } } },
+  ]);
+
+  // Map report counts to posts
+  const reportMap = {};
+  reports.forEach((r) => {
+    reportMap[r._id.toString()] = r.reportCount;
+  });
+
+  const postsWithReports = posts.map((post) => ({
+    ...post,
+    reportCount: reportMap[post._id.toString()] || 0,
+    isReported: (reportMap[post._id.toString()] || 0) > 0,
+  }));
+
+  const totalPosts = await Post.countDocuments({ author: userId });
+  const totalPages = Math.ceil(totalPosts / limit);
+
+  return res.status(200).json(
+    new apiSuccess(
+      200,
+      "Successfully retrieved user posts",
+      {
+        posts: postsWithReports,
+        pagination: {
+          totalPosts,
+          totalPages,
+          currentPage: page,
+          pageSize: limit,
+        },
+      },
+      false
+    )
+  );
+});
+
+
+
 module.exports = {
   registerUserController,
   loginUserController,
@@ -634,5 +735,7 @@ module.exports = {
   logoutUser,
   verifyAccount,
   resendOtp,
+  getSingleuser,
+  getUserAllPost,
 };
-// re checking
+
