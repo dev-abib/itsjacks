@@ -94,7 +94,7 @@ router.route("/get-report/:userId").get(adminAuthGuard, getReportsAgainstUser);
 router.route("/delete-report/:id").delete(adminAuthGuard, deleteReport);
 
 // get all posts
-router.route("/get-all-posts").get(adminAuthGuard, getAllPosts);
+router.route("/get-all-posts-admin").get(adminAuthGuard, getAllPosts);
 
 // delete a post
 router.route("/delete-post/:postId").delete(adminAuthGuard, deletePost);
