@@ -587,7 +587,6 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   } catch (error) {
     return next(new apiError(401, "Unauthorized", null, false));
   }
-  const userId = decodedData.userData.userId;
 
   const { date } = req.body;
 
@@ -602,14 +601,13 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   endOfDay.setHours(23, 59, 59, 999);
 
   const savedEvents = await Post.find({
-    savedBy: userId,
     postType: "event",
     eventTime: { $gte: startOfDay, $lte: endOfDay },
   }).populate("author", "fullName email profilePicture");
 
   if (!savedEvents.length) {
     return next(
-      new apiError(404, "No saved events found on this date", null, false)
+      new apiError(404, "No events found on this date", null, false)
     );
   }
 
