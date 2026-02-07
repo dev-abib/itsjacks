@@ -30,7 +30,7 @@ const postSchema = new mongoose.Schema(
     savedBy: [
       {
         type: mongoose.Schema.Types.ObjectId,
-        ref: "user", 
+        ref: "user",
       },
     ],
     ratingInfo: [
@@ -48,7 +48,7 @@ const postSchema = new mongoose.Schema(
     ],
     approxRating: {
       type: Number,
-      default:null
+      default: null,
     },
     likes: [
       {
@@ -63,6 +63,11 @@ const postSchema = new mongoose.Schema(
     shareCount: {
       type: Number,
       default: 0,
+    },
+    category: {
+      type: String,
+      enum: ["greek life", "local business", "student clubs", "sport"],
+      required: [true, "Post category is required"],
     },
   },
   { timestamps: true }

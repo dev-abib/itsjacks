@@ -512,7 +512,7 @@ const updateUser = asyncHandler(async (req, res, next) => {
     return next(new apiError(404, "User not found", null, false));
 
   const { fullName } = req.body;
-  const profilePicture = req.file;
+  const profilePicture = req.files;
 
   if (fullName) isExisteduser.fullName = fullName.trim();
 

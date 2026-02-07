@@ -16,7 +16,7 @@ const { report } = require("../Schema/report.post.schem");
  * @desc Create new post
  */
 const createPost = asyncHandler(async (req, res, next) => {
-  const { description, eventTime, postType } = req.body;
+  const { description, eventTime, postType, category } = req.body;
   const files = req.files;
 
   // Decode session token
@@ -48,6 +48,19 @@ const createPost = asyncHandler(async (req, res, next) => {
       )
     );
   }
+
+   if (!category) {
+     return next(new apiError(400, "Category filed is required", null, false));
+   }
+
+   if (
+     !["greek life", "local business", "student clubs", "sport"].includes(
+       category
+     )
+   ) {
+     return next(new apiError(400, "Invalid post type", null, false));
+   }
+
 
   // Validate eventTime
   if (postType === "event" && isNaN(new Date(eventTime))) {
@@ -120,7 +133,7 @@ const toggleLikePost = asyncHandler(async (req, res, next) => {
 
     // Create the like notification
     const notification = new Notification({
-      user: postOwnerId, // The user who will receive the notification
+      user: postOwnerId,
       message: `${likedUser.fullName} liked your post: ${post.description}`,
       type: "like",
       post: postId,
@@ -398,7 +411,7 @@ const rateEvent = asyncHandler(async (req, res, next) => {
 // get events controller
 const getEvents = asyncHandler(async (req, res, next) => {
   let decodedData;
-  const { isOld } = req.query;
+  const { isOld, category } = req.query; 
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const limit = Math.min(parseInt(req.query.limit) || 10, 100);
   const skip = (page - 1) * limit;
@@ -412,12 +425,19 @@ const getEvents = asyncHandler(async (req, res, next) => {
   const userId = decodedData.userData.userId;
   const now = new Date();
 
+  // Base filter for events
   let filter = { postType: "event" };
 
+  // Filter by old/upcoming events
   if (isOld === "true") {
-    filter.createdAt = { $gt: now };
+    filter.eventTime = { $lte: now }; 
   } else if (isOld === "false") {
-    filter.createdAt = { $lte: now };
+    filter.eventTime = { $gt: now }; 
+  }
+
+  // Filter by category if provided
+  if (category) {
+    filter.category = category; 
   }
 
   const totalPosts = await Post.countDocuments(filter);
@@ -429,12 +449,11 @@ const getEvents = asyncHandler(async (req, res, next) => {
     .limit(limit);
 
   const eventsWithLikeStatus = events.map((event) => {
-    const likedByUser = event.likes.includes(userId);
+    const isLiked = event.likes.includes(userId);
     const isRated = event.ratingInfo.some(
       (rating) => rating.user.toString() === userId.toString()
     );
     const isSaved = event.savedBy.includes(userId);
-    const isLiked = likedByUser ? true : false;
 
     return {
       ...event.toObject(),
@@ -466,6 +485,7 @@ const getEvents = asyncHandler(async (req, res, next) => {
       )
     );
 });
+
 
 // get my events controller
 const getMyEvents = asyncHandler(async (req, res, next) => {
@@ -606,9 +626,7 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   }).populate("author", "fullName email profilePicture");
 
   if (!savedEvents.length) {
-    return next(
-      new apiError(404, "No events found on this date", null, false)
-    );
+    return next(new apiError(404, "No events found on this date", null, false));
   }
 
   res
