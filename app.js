@@ -22,6 +22,7 @@ app.use(
       "http://localhost:5173",
       "http://localhost:5174",
       "https://itsjacks-dashboard.vercel.app",
+      "https://frapp-dashboard-866790713672.europe-west1.run.app"
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true,
