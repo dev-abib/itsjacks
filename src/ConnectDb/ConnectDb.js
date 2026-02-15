@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const { seedDefaultAdmin } = require("../Helpers/seedDefaultAdmin");
 
 // internal dependencies
-const DB_Name = "itsjacks";
+const DB_Name = "Fr-app";
 
 let isConnected = false;
 
