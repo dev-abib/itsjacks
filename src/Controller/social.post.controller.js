@@ -49,18 +49,17 @@ const createPost = asyncHandler(async (req, res, next) => {
     );
   }
 
-   if (!category) {
-     return next(new apiError(400, "Category filed is required", null, false));
-   }
+  if (!category) {
+    return next(new apiError(400, "Category filed is required", null, false));
+  }
 
-   if (
-     !["greek life", "local business", "student clubs", "sport"].includes(
-       category
-     )
-   ) {
-     return next(new apiError(400, "Invalid post type", null, false));
-   }
-
+  if (
+    !["greek life", "local business", "student clubs", "sport"].includes(
+      category
+    )
+  ) {
+    return next(new apiError(400, "Invalid post type", null, false));
+  }
 
   // Validate eventTime
   if (postType === "event" && isNaN(new Date(eventTime))) {
@@ -95,6 +94,7 @@ const createPost = asyncHandler(async (req, res, next) => {
     author: decodedData.userData.userId,
     eventTime: eventTime ? new Date(eventTime) : null,
     postType: postType,
+    category,
   });
 
   return res
@@ -411,7 +411,7 @@ const rateEvent = asyncHandler(async (req, res, next) => {
 // get events controller
 const getEvents = asyncHandler(async (req, res, next) => {
   let decodedData;
-  const { isOld, category } = req.query; 
+  const { isOld, category } = req.query;
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const limit = Math.min(parseInt(req.query.limit) || 10, 100);
   const skip = (page - 1) * limit;
@@ -430,14 +430,14 @@ const getEvents = asyncHandler(async (req, res, next) => {
 
   // Filter by old/upcoming events
   if (isOld === "true") {
-    filter.eventTime = { $lte: now }; 
+    filter.eventTime = { $lte: now };
   } else if (isOld === "false") {
-    filter.eventTime = { $gt: now }; 
+    filter.eventTime = { $gt: now };
   }
 
   // Filter by category if provided
   if (category) {
-    filter.category = category; 
+    filter.category = category;
   }
 
   const totalPosts = await Post.countDocuments(filter);
@@ -485,7 +485,6 @@ const getEvents = asyncHandler(async (req, res, next) => {
       )
     );
 });
-
 
 // get my events controller
 const getMyEvents = asyncHandler(async (req, res, next) => {
@@ -685,7 +684,13 @@ const deletePostEvent = asyncHandler(async (req, res, next) => {
 
 // update post / event
 const updatePostEvent = asyncHandler(async (req, res, next) => {
-  const { description, eventTime, postType, deleteImages = [] } = req.body;
+  const {
+    description,
+    eventTime,
+    postType,
+    category,
+    deleteImages = [],
+  } = req.body;
   const files = req.files;
 
   const decodedData = await decodeSessionToken(req);
@@ -793,6 +798,7 @@ const updatePostEvent = asyncHandler(async (req, res, next) => {
   // Update post
   isExistedPost.description = description || isExistedPost.description;
   isExistedPost.postType = postType || isExistedPost.postType;
+  isExistedPost.category = category || isExistedPost.category;
   isExistedPost.images = updatedImages;
 
   const updatedPost = await isExistedPost.save();
