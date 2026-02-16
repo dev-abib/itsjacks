@@ -22,7 +22,7 @@ app.use(
       "http://localhost:5173",
       "http://localhost:5174",
       "https://itsjacks-dashboard.vercel.app",
-      "https://gorgeous-blini-d54ec9.netlify.app",
+      "https://incomparable-kulfi-37a4e3.netlify.app",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true,
