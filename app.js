@@ -2,13 +2,15 @@ const express = require("express");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
 const helmet = require("helmet");
-const rateLimit = require("express-rate-limit");
 const bodyParser = require("body-parser");
 
 const allRoutes = require("./src/Routes/index");
 
 const app = express();
-const PORT = process.env.PORT || 8080; 
+const PORT = process.env.PORT || 8080;
+
+// Enable trusting proxy headers (important for Cloud Run and reverse proxies)
+app.set("trust proxy", true); // Add this line
 
 // Middleware
 app.use(express.json({ limit: "50mb" }));
@@ -28,10 +30,6 @@ app.use(
     credentials: true,
   })
 );
-
-// Rate limiter
-const limiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 100 });
-app.use(limiter);
 
 // Routes
 app.use(allRoutes);
