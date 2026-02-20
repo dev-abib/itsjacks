@@ -13,6 +13,7 @@
   "type": "commonjs",
   "dependencies": {
     "agenda": "^5.0.0",
+    "axios": "^1.13.5",
     "bcrypt": "^6.0.0",
     "body-parser": "^2.2.0",
     "chalk": "^5.4.1",
@@ -31,6 +32,7 @@
     "node-cron": "^4.2.1",
     "nodemailer": "^7.0.5",
     "number-generator": "^4.0.6",
+    "sib-api-v3-sdk": "^8.5.0",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.1",
     "streamifier": "^0.1.1",
