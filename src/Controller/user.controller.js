@@ -31,6 +31,12 @@ const registerUserController = asyncHandler(async (req, res, next) => {
   if (!emailChecker(email))
     return next(new apiError(400, "Invalid Email format"));
 
+  if (role === "student" && !email.endsWith("@chapman.edu")) {
+    return next(
+      new apiError(400, "Only Chapman University student emails are allowed")
+    );
+  }
+
   if (!password) return next(new apiError(400, "Password field is required"));
 
   if (!passwordChecker(confirmPassword))
@@ -720,8 +726,6 @@ const getUserAllPost = asyncHandler(async (req, res, next) => {
   );
 });
 
-
-
 module.exports = {
   registerUserController,
   loginUserController,
@@ -738,4 +742,3 @@ module.exports = {
   getSingleuser,
   getUserAllPost,
 };
-
