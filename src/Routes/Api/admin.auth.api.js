@@ -25,6 +25,8 @@ const {
   createDynamicPage,
   getAllDynamicPages,
   getDynamicPageBySlug,
+  banUnbannedUser,
+  verifyUserAccount,
 } = require("../../Controller/admin.auth.controller");
 const { authguard } = require("../../middleware/authGuard");
 const { uploadImages } = require("../../middleware/multer.middleware");
@@ -116,6 +118,12 @@ router.route("/dynamic-pages/:pageId").delete(adminAuthGuard, deleteDynamicPage)
 
 // get dynamic content by slug
 router.route("/dynamic-pages/slug/:slug").get(getDynamicPageBySlug);
+
+// ban user
+router.route("/ban-unbanned-user/:userId").post(banUnbannedUser);
+
+// verify user account
+router.route("/verify-user/:userId").post(adminAuthGuard, verifyUserAccount);
 
 
 module.exports = router; 

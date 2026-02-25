@@ -1,3 +1,4 @@
+const { mailSender } = require("../Helpers/emailSender");
 const {
   createAdminSessionToken,
   verifyPassword,
@@ -75,70 +76,149 @@ const loginAdminController = asyncHandler(async (req, res, next) => {
 });
 
 // get all available user controller
-
 const getAllUserData = asyncHandler(async (req, res, next) => {
-  const decodedData = await decodeSessionToken(req);
-  if (!decodedData) {
-    return next(new apiError(401, "Unauthorized", null, false));
+  // 1. Auth check (assuming admin only – add admin middleware if not already)
+  const decoded = await decodeSessionToken(req);
+  if (!decoded) {
+    return next(new apiError(401, "Unauthorized"));
   }
 
+  // 2. Query params with sane defaults
   const {
     page = 1,
+    limit = 10,
     search = "",
     sortBy = "createdAt",
     sortOrder = "desc",
   } = req.query;
-  const ITEMS_PER_PAGE = 10;
-  const skip = (Number(page) - 1) * ITEMS_PER_PAGE;
 
-  // Build search query
-  const searchQuery = {
-    $or: [
-      { fullName: { $regex: search, $options: "i" } },
-      { email: { $regex: search, $options: "i" } },
-    ],
-  };
+  const pageNum = Math.max(1, Number(page));
+  const perPage = Math.min(50, Math.max(5, Number(limit))); // reasonable bounds
+  const skip = (pageNum - 1) * perPage;
 
-  // Build sort options
-  const validSortFields = ["fullName", "email", "createdAt", "updatedAt"];
-  const sortField = validSortFields.includes(sortBy) ? sortBy : "createdAt";
-  const sortDirection = sortOrder === "asc" ? 1 : -1;
-  const sortOptions = { [sortField]: sortDirection };
+  // 3. Search filter
+  const searchFilter = search.trim()
+    ? {
+        $or: [
+          { fullName: { $regex: search.trim(), $options: "i" } },
+          { email: { $regex: search.trim(), $options: "i" } },
+        ],
+      }
+    : {};
 
-  const totalUsersLength = await user.find();
-  const total = await user.countDocuments(searchQuery);
-  const users = await user
-    .find(searchQuery)
-    .sort(sortOptions)
-    .skip(skip)
-    .limit(ITEMS_PER_PAGE);
+  // 4. Sorting
+  const allowedSortFields = [
+    "fullName",
+    "email",
+    "createdAt",
+    "updatedAt",
+    "role",
+  ];
+  const sortField = allowedSortFields.includes(sortBy) ? sortBy : "createdAt";
+  const sortDir = sortOrder === "asc" ? 1 : -1;
+  const sort = { [sortField]: sortDir };
 
-  if (!users.length) {
-    return next(new apiError(404, "No users found", null, false));
+  // 5. Aggregation – get counts + paginated data in one go
+  const pipeline = [
+    { $match: searchFilter },
+
+    // Facet – counts + paginated slice
+    {
+      $facet: {
+        metadata: [
+          {
+            $group: {
+              _id: null,
+              totalUsers: { $sum: 1 },
+              totalCreators: {
+                $sum: { $cond: [{ $eq: ["$role", "creator"] }, 1, 0] },
+              },
+              totalStudents: {
+                $sum: { $cond: [{ $eq: ["$role", "student"] }, 1, 0] },
+              },
+              verifiedCreators: {
+                $sum: {
+                  $cond: [
+                    {
+                      $and: [
+                        { $eq: ["$role", "creator"] },
+                        { $eq: ["$isVerifiedAccount", true] },
+                      ],
+                    },
+                    1,
+                    0,
+                  ],
+                },
+              },
+              bannedUsers: {
+                $sum: { $cond: [{ $eq: ["$isBanned", true] }, 1, 0] },
+              },
+            },
+          },
+        ],
+
+        users: [
+          { $sort: sort },
+          { $skip: skip },
+          { $limit: perPage },
+          {
+            $project: {
+              password: 0,
+              resetToken: 0,
+              refreshToken: 0,
+              otp: 0,
+              otpExpiresAt: 0,
+              __v: 0,
+            },
+          },
+        ],
+      },
+    },
+
+    // Unwind metadata (single document)
+    { $unwind: "$metadata" },
+  ];
+
+  const result = await user.aggregate(pipeline);
+
+  if (!result.length) {
+    return res.status(200).json(
+      new apiSuccess(200, "No users found", {
+        meta: {
+          totalUsers: 0,
+          totalCreators: 0,
+          totalStudents: 0,
+          verifiedCreators: 0,
+          bannedUsers: 0,
+          filteredCount: 0,
+          currentPage: pageNum,
+          totalPages: 0,
+          perPage,
+        },
+        data: [],
+      })
+    );
   }
 
-  const safeUsers = users.map((user) => {
-    const { password, resetToken, refreshToken, otp, ...rest } =
-      user.toObject();
-    return rest;
-  });
-
-  const allUsersLength = totalUsersLength.length;
+  const { metadata, users } = result[0];
 
   return res.status(200).json(
-    new apiSuccess(
-      200,
-      "Successfully retrieved users",
-      {
-        users: safeUsers,
-        allUsersLength: allUsersLength,
-        total,
-        page: Number(page),
-        totalPages: Math.ceil(total / ITEMS_PER_PAGE),
+    new apiSuccess(200, "Users retrieved", {
+      meta: {
+        totalUsers: metadata.totalUsers,
+        totalCreators: metadata.totalCreators,
+        totalStudents: metadata.totalStudents,
+        verifiedCreators: metadata.verifiedCreators,
+        bannedUsers: metadata.bannedUsers,
+        filteredCount: metadata.totalUsers,
+        currentPage: pageNum,
+        totalPages: Math.ceil(metadata.totalUsers / perPage),
+        perPage,
+        sortBy: sortField,
+        sortOrder: sortDir === 1 ? "asc" : "desc",
       },
-      true,
-      null
-    )
+      data: users,
+    })
   );
 });
 
@@ -815,7 +895,6 @@ const deletePost = asyncHandler(async (req, res, next) => {
     );
 });
 
-
 // Create a new dynamic page
 const createDynamicPage = asyncHandler(async (req, res, next) => {
   const decodedData = await decodeSessionToken(req);
@@ -825,14 +904,18 @@ const createDynamicPage = asyncHandler(async (req, res, next) => {
 
   const { pageTitle, pageDescreption } = req.body;
   if (!pageTitle || !pageDescreption) {
-    return next(new apiError(400, "Title and Description are required", null, false));
+    return next(
+      new apiError(400, "Title and Description are required", null, false)
+    );
   }
 
   const newPage = await dynamicPageModel.create({ pageTitle, pageDescreption });
 
   return res
     .status(201)
-    .json(new apiSuccess(201, "Dynamic page created successfully", newPage, true));
+    .json(
+      new apiSuccess(201, "Dynamic page created successfully", newPage, true)
+    );
 });
 
 // Get all dynamic pages with search, sorting, and pagination
@@ -858,16 +941,21 @@ const getAllDynamicPages = asyncHandler(async (req, res, next) => {
 
   const totalPages = Math.ceil(totalPagesCount / limit);
 
-  return res
-    .status(200)
-    .json(new apiSuccess(200, "Dynamic pages retrieved successfully", {
-      pages,
-      pagination: {
-        totalPages: totalPages,
-        currentPage: page,
-        pageSize: limit,
+  return res.status(200).json(
+    new apiSuccess(
+      200,
+      "Dynamic pages retrieved successfully",
+      {
+        pages,
+        pagination: {
+          totalPages: totalPages,
+          currentPage: page,
+          pageSize: limit,
+        },
       },
-    }, true));
+      true
+    )
+  );
 });
 
 // Get a single dynamic page by ID
@@ -877,7 +965,9 @@ const getDynamicPageById = asyncHandler(async (req, res, next) => {
   if (!page) {
     return next(new apiError(404, "Dynamic page not found", null, false));
   }
-  return res.status(200).json(new apiSuccess(200, "Page retrieved successfully", page, true));
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Page retrieved successfully", page, true));
 });
 
 // Update a dynamic page
@@ -900,7 +990,9 @@ const updateDynamicPage = asyncHandler(async (req, res, next) => {
 
   await page.save();
 
-  return res.status(200).json(new apiSuccess(200, "Dynamic page updated successfully", page, true));
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Dynamic page updated successfully", page, true));
 });
 
 // Delete a dynamic page
@@ -918,7 +1010,9 @@ const deleteDynamicPage = asyncHandler(async (req, res, next) => {
 
   await dynamicPageModel.findByIdAndDelete(pageId);
 
-  return res.status(200).json(new apiSuccess(200, "Dynamic page deleted successfully", null, true));
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Dynamic page deleted successfully", null, true));
 });
 
 const getDynamicPageBySlug = asyncHandler(async (req, res, next) => {
@@ -941,8 +1035,77 @@ const getDynamicPageBySlug = asyncHandler(async (req, res, next) => {
     .json(new apiSuccess(200, "Page retrieved successfully", { page }, true));
 });
 
+const verifyUserAccount = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
 
+  const User = await user.findById(userId);
+  if (!user) {
+    return next(
+      new apiError(404, "User not found, account deleted or removed by admin")
+    );
+  }
 
+  const isVerified = !User.isVerifiedAccount;
+  User.isVerifiedAccount = isVerified;
+  await User.save();
+
+  await mailSender({
+    type: "verify-account",
+    name: User.fullName,
+    emailAdress: User.email,
+    data: { isVerified },
+    subject: `Your Account Has Been ${isVerified ? "Verified" : "Unverified"}`,
+  });
+
+  return res
+    .status(200)
+    .json(
+      new apiSuccess(
+        200,
+        `Account ${isVerified ? "verified" : "verification removed"} successfully`
+      )
+    );
+});
+
+const banUnbannedUser = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+
+  const User = await user.findById(userId);
+  if (!User) return next(new apiError(404, "User not found"));
+
+  const willBeBanned = !User.isBanned;
+  User.isBanned = willBeBanned;
+  await User.save();
+
+  const emailType = willBeBanned ? "account-banned" : "account-unbanned";
+  const subject = willBeBanned
+    ? "Account Suspension Notice"
+    : "Account Reinstated";
+
+  try {
+    await mailSender({
+      type: emailType,
+      emailAddress: User.email, 
+      data: {
+        name: User.fullName || "User",
+        email: User.email,
+      },
+      subject,
+    });
+  } catch (mailErr) {
+    console.error("Email failed, but ban updated", mailErr);
+    // still succeed — don't fail the request just because email didn't send
+  }
+
+  return res
+    .status(200)
+    .json(
+      new apiSuccess(
+        200,
+        `User successfully ${willBeBanned ? "banned" : "unbanned"}`
+      )
+    );
+});
 
 module.exports = {
   loginAdminController,
@@ -968,4 +1131,6 @@ module.exports = {
   updateDynamicPage,
   deleteDynamicPage,
   getDynamicPageBySlug,
+  verifyUserAccount,
+  banUnbannedUser,
 };

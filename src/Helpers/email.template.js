@@ -161,7 +161,141 @@ const AccountVerificationTemplate = (name, otp, email) => {
 };
 
 
+const AccountBannedTemplate = (
+  name,
+  email,
+  reason = "a violation of our terms"
+) => {
+  return `
+  <html lang="en">
+    <head>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          background-color: #f9f9f9;
+          margin: 0;
+          padding: 20px;
+        }
+        .container {
+          max-width: 600px;
+          background-color: #ffffff;
+          padding: 30px;
+          border-radius: 8px;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+          color: #d9534f;
+          font-size: 24px;
+        }
+        p {
+          font-size: 16px;
+          color: #555555;
+        }
+        .alert {
+          background-color: #f8d7da;
+          color: #721c24;
+          padding: 15px;
+          border-radius: 5px;
+          margin: 20px 0;
+          font-weight: bold;
+          text-align: center;
+        }
+        .footer {
+          margin-top: 30px;
+          font-size: 12px;
+          color: #777777;
+          text-align: center;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h2>Hello ${name},</h2>
+
+        <p>We regret to inform you that your account has been temporarily restricted.</p>
+
+        <div class="alert">
+          Your account has been banned due to ${reason}.
+        </div>
+
+        <p>If you believe this was a mistake or need further clarification, please contact our support team.</p>
+
+        <p class="footer">
+          This notification was sent to <strong>${email}</strong>.
+        </p>
+      </div>
+    </body>
+  </html>
+  `;
+};
+
+const AccountUnbannedTemplate = (name, email) => {
+  return `
+  <html lang="en">
+    <head>
+      <style>
+        body {
+          font-family: Arial, sans-serif;
+          background-color: #f9f9f9;
+          margin: 0;
+          padding: 20px;
+        }
+        .container {
+          max-width: 600px;
+          background-color: #ffffff;
+          padding: 30px;
+          border-radius: 8px;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+          color: #28a745;
+          font-size: 24px;
+        }
+        p {
+          font-size: 16px;
+          color: #555555;
+        }
+        .success {
+          background-color: #d4edda;
+          color: #155724;
+          padding: 15px;
+          border-radius: 5px;
+          margin: 20px 0;
+          font-weight: bold;
+          text-align: center;
+        }
+        .footer {
+          margin-top: 30px;
+          font-size: 12px;
+          color: #777777;
+          text-align: center;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h2>Good news ${name},</h2>
+
+        <div class="success">
+          Your account has been successfully reactivated.
+        </div>
+
+        <p>You now have full access to your account again. Please make sure to follow our community guidelines going forward.</p>
+
+        <p class="footer">
+          This notification was sent to <strong>${email}</strong>.
+        </p>
+      </div>
+    </body>
+  </html>
+  `;
+};
+
+
+
 module.exports = {
   PasswordResetTemplate,
-  AccountVerificationTemplate
+  AccountVerificationTemplate,
+  AccountBannedTemplate,
+  AccountUnbannedTemplate
 };

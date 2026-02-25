@@ -3,10 +3,12 @@ const axios = require("axios");
 const {
   PasswordResetTemplate,
   AccountVerificationTemplate,
+  AccountBannedTemplate,
+  AccountUnbannedTemplate,
 } = require("./email.template");
 
 // Async function to send an email using Brevo's API
-const mailSender = async ({ type, name, emailAdress, subject, otp }) => {
+const mailSender = async ({ type, name, emailAdress, subject, otp , data }) => {
   try {
     let html;
 
@@ -17,6 +19,14 @@ const mailSender = async ({ type, name, emailAdress, subject, otp }) => {
 
     if (type === "verify-account") {
       html = AccountVerificationTemplate(name, otp, emailAdress);
+    }
+
+    if (type === "account-banned") {
+      html = AccountBannedTemplate(data?.name, data?.email, data?.reason);
+    }
+
+    if (type === "account-unbanned") {
+      html = AccountUnbannedTemplate(data?.name, data?.email);
     }
 
     // Prepare the email data for Brevo's API
