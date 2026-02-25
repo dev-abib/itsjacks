@@ -607,11 +607,16 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
     return next(new apiError(401, "Unauthorized", null, false));
   }
 
+  const userId = decodedData.userData.userId;
   const { date } = req.body;
 
   if (!date) {
     return next(new apiError(400, "Please provide a date", null, false));
   }
+
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+  const skip = (page - 1) * limit;
 
   const startOfDay = new Date(date);
   startOfDay.setHours(0, 0, 0, 0);
@@ -619,19 +624,53 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   const endOfDay = new Date(date);
   endOfDay.setHours(23, 59, 59, 999);
 
-  const savedEvents = await Post.find({
+  // Fetch all events on this date (don't filter by savedBy)
+  const totalPosts = await Post.countDocuments({
     postType: "event",
     eventTime: { $gte: startOfDay, $lte: endOfDay },
-  }).populate("author", "fullName email profilePicture");
+  });
 
-  if (!savedEvents.length) {
+  
+
+  const events = await Post.find({
+    postType: "event",
+    eventTime: { $gte: startOfDay, $lte: endOfDay },
+  })
+    .populate("author", "fullName email profilePicture")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  if (!events.length) {
     return next(new apiError(404, "No events found on this date", null, false));
   }
+
+  // Add isSaved property based on whether user has saved the event
+  const eventsWithIsSaved = events.map((event) => ({
+    ...event.toObject(),
+    isSaved: event.savedBy.includes(userId),
+  }));  
+
+  const pagination = {
+    currentPage: page,
+    limit,
+    totalPages: Math.ceil(totalPosts / limit),
+    totalPosts,
+    hasNextPage: page * limit < totalPosts,
+    hasPrevPage: page > 1,
+    nextPage: page * limit < totalPosts ? page + 1 : null,
+    prevPage: page > 1 ? page - 1 : null,
+  };
 
   res
     .status(200)
     .json(
-      new apiSuccess(200, "Events retrieved successfully", savedEvents, true)
+      new apiSuccess(
+        200,
+        "Events retrieved successfully",
+        { events: eventsWithIsSaved, pagination },
+        true
+      )
     );
 });
 
