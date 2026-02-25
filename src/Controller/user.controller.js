@@ -511,23 +511,29 @@ const resetPassword = asyncHandler(async (req, res, next) => {
 
 const updateUser = asyncHandler(async (req, res, next) => {
   const decodedData = await decodeSessionToken(req);
-  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
+  if (!decodedData) {
+    return next(new apiError(401, "Unauthorized", null, false));
+  }
 
-  const isExisteduser = await user.findById(decodedData?.userData?.userId);
-  if (!isExisteduser)
+  const isExisteduser = await user.findById(decodedData.userData.userId);
+  if (!isExisteduser) {
     return next(new apiError(404, "User not found", null, false));
+  }
 
   const { fullName } = req.body;
-  const profilePicture = req.files;
+  const profilePicture = req.file;
 
-  if (fullName) isExisteduser.fullName = fullName.trim();
+  
+
+  if (fullName) {
+    isExisteduser.fullName = fullName.trim();
+  }
 
   if (profilePicture) {
     try {
+      // delete old image if exists
       if (isExisteduser.profilePicture) {
-        let isDeleted = await deleteCloudinaryAsset(
-          isExisteduser.profilePicture
-        );
+        await deleteCloudinaryAsset(isExisteduser.profilePicture);
       }
 
       const uploadResult = await uploadCloudinary(
@@ -555,7 +561,7 @@ const updateUser = asyncHandler(async (req, res, next) => {
       {
         fullName: updatedUser.fullName,
         email: updatedUser.email,
-        profilePic: updatedUser.profilePic,
+        profilePicture: updatedUser.profilePicture,
       },
       true
     )
