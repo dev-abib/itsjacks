@@ -1049,13 +1049,7 @@ const verifyUserAccount = asyncHandler(async (req, res, next) => {
   User.isVerifiedAccount = isVerified;
   await User.save();
 
-  await mailSender({
-    type: "verify-account",
-    name: User.fullName,
-    emailAdress: User.email,
-    data: { isVerified },
-    subject: `Your Account Has Been ${isVerified ? "Verified" : "Unverified"}`,
-  });
+  
 
   return res
     .status(200)
@@ -1081,21 +1075,6 @@ const banUnbannedUser = asyncHandler(async (req, res, next) => {
   const subject = willBeBanned
     ? "Account Suspension Notice"
     : "Account Reinstated";
-
-  try {
-    await mailSender({
-      type: emailType,
-      emailAddress: User.email, 
-      data: {
-        name: User.fullName || "User",
-        email: User.email,
-      },
-      subject,
-    });
-  } catch (mailErr) {
-    console.error("Email failed, but ban updated", mailErr);
-    // still succeed — don't fail the request just because email didn't send
-  }
 
   return res
     .status(200)

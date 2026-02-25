@@ -196,13 +196,39 @@ const loginUserController = asyncHandler(async (req, res, next) => {
   if (!isVerifiedPass)
     return next(new apiError(400, "Invalid email or password", null, false));
 
-  if (
-    isExistingUser.isOtpVerified === null ||
-    isExistingUser.isOtpVerified === undefined ||
-    isExistingUser.isOtpVerified !== true
-  ) {
+  // OTP verification
+  if (!isExistingUser.isOtpVerified) {
     return next(
-      new apiError(400, "Before login , please verify you account", null, false)
+      new apiError(
+        400,
+        "Before login, please verify your account via OTP",
+        null,
+        false
+      )
+    );
+  }
+
+  // isBanned check (applies to both students and creators)
+  if (isExistingUser.isBanned) {
+    return next(
+      new apiError(
+        401,
+        "Your account is temporarily banned. Please contact support.",
+        null,
+        false
+      )
+    );
+  }
+
+  // isVerifiedAccount check (only for creators)
+  if (isExistingUser.role === "creator" && !isExistingUser.isVerifiedAccount) {
+    return next(
+      new apiError(
+        403,
+        "Your creator account is not verified yet. Please wait for approval.",
+        null,
+        false
+      )
     );
   }
 
@@ -214,7 +240,7 @@ const loginUserController = asyncHandler(async (req, res, next) => {
   };
 
   const token = await createSessionToken(data);
-  isExistingUser.token = token;
+  isExistingUser.refreshToken = token;
   await isExistingUser.save();
 
   const responseData = {
