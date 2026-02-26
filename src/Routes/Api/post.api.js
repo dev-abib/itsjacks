@@ -19,6 +19,7 @@ const {
   getSinglePost,
   removeSavedEvent,
   reportPostController,
+  getEventsById,
 } = require("../../Controller/social.post.controller");
 
 const router = express.Router();
@@ -57,6 +58,9 @@ router.route("/get-my-events").get(authguard, getMyEvents);
 
 // get my saved events
 router.route("/get-my-saved-events").post(authguard, getMySavedEventTime);
+
+// get events by id
+router.route("/get-events-by-id/:userId").get(authguard, getEventsById);
 
 // update post/events
 router

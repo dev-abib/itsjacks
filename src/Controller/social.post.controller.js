@@ -557,6 +557,71 @@ const getMyEvents = asyncHandler(async (req, res, next) => {
   );
 });
 
+// get events by user id
+const getEventsById = asyncHandler(async (req, res, next) => {
+  const { userId } = req.params;
+
+  const page = Math.max(parseInt(req.query.page) || 1, 1);
+  const limit = Math.min(parseInt(req.query.limit) || 10, 100);
+  const skip = (page - 1) * limit;
+
+
+  // Count total number of events
+  const totalPosts = await Post.countDocuments({
+    author: userId,
+    postType: "event",
+  });
+
+  // Fetch the actual posts (events)
+  const myPosts = await Post.find({
+    author: userId,
+    postType: "event",
+  })
+    .populate("author", "fullName email profilePicture")
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(limit);
+
+  const myPostsWithLikeStatus = myPosts.map((event) => {
+    const likedByUser = event.likes.includes(userId);
+    const isRated = event.ratingInfo.some(
+      (rating) => rating.user.toString() === userId.toString()
+    );
+    const isSaved = event.savedBy.includes(userId);
+    const isLiked = likedByUser ? true : false;
+
+    return {
+      ...event.toObject(),
+      isLiked,
+      isRated,
+      isSaved,
+    };
+  });
+
+  const pagination = {
+    currentPage: page,
+    limit,
+    totalPages: Math.ceil(totalPosts / limit),
+    totalPosts,
+    hasNextPage: page * limit < totalPosts,
+    hasPrevPage: page > 1,
+    nextPage: page * limit < totalPosts ? page + 1 : null,
+    prevPage: page > 1 ? page - 1 : null,
+  };
+
+  return res.status(200).json(
+    new apiSuccess(
+      200,
+      "Events fetched successfully",
+      {
+        myPosts: myPostsWithLikeStatus,
+        pagination,
+      },
+      true
+    )
+  );
+});
+
 // save event controller
 const saveEventTime = asyncHandler(async (req, res, next) => {
   let decodedData;
@@ -1022,4 +1087,5 @@ module.exports = {
   getSinglePost,
   removeSavedEvent,
   reportPostController,
+  getEventsById,
 };
