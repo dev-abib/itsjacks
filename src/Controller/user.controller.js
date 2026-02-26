@@ -39,7 +39,7 @@ const registerUserController = asyncHandler(async (req, res, next) => {
 
   if (!password) return next(new apiError(400, "Password field is required"));
 
-  if (!passwordChecker(confirmPassword))
+  if (!passwordChecker(password))
     return next(
       new apiError(
         400,
@@ -101,7 +101,7 @@ const registerUserController = asyncHandler(async (req, res, next) => {
   const otp = await otpGenerator();
 
   savedUser.otp = otp;
-  savedUser.otpExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
+  savedUser.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
   await savedUser.save();
 
   const isMailSend = await mailSender({
@@ -370,7 +370,7 @@ const verifyEmail = asyncHandler(async (req, res, next) => {
   const otp = await otpGenerator();
 
   isExisteduser.otp = otp;
-  isExisteduser.otpExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
+  isExisteduser.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
   await isExisteduser.save();
 
   try {
@@ -430,7 +430,7 @@ const resendOtp = asyncHandler(async (req, res, next) => {
 
   // update user
   isExisteduser.otp = otp;
-  isExisteduser.otpExpiresAt = new Date(Date.now() + 2 * 60 * 1000);
+  isExisteduser.otpExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
   await isExisteduser.save();
 
   try {
