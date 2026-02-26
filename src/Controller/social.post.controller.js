@@ -569,22 +569,27 @@ const saveEventTime = asyncHandler(async (req, res, next) => {
   const { eventId } = req.params;
   const userId = decodedData.userData.userId;
 
-  // Find the event by ID
-  const updatedEvent = await Post.findById(eventId);
-  if (!updatedEvent) {
+  const event = await Post.findById(eventId);
+  if (!event) {
     return next(new apiError(404, "Event not found", null, false));
   }
 
-  // Use $addToSet to prevent duplicates in savedBy array
-  const result = await Post.findByIdAndUpdate(
+  const alreadySaved = event.savedBy.includes(userId);
+
+  if (alreadySaved) {
+    return res
+      .status(200)
+      .json(new apiSuccess(200, "Event already saved", { event }, true));
+  }
+
+  const updatedEvent = await Post.findByIdAndUpdate(
     eventId,
-    { $addToSet: { savedBy: userId } },
+    {
+      $addToSet: { savedBy: userId },
+      $inc: { saveCount: 1 },
+    },
     { new: true }
   );
-
-  if (!result) {
-    return next(new apiError(500, "Error saving the event", null, false));
-  }
 
   return res
     .status(200)
@@ -592,7 +597,7 @@ const saveEventTime = asyncHandler(async (req, res, next) => {
       new apiSuccess(
         200,
         "Successfully added event to your calendar",
-        { result },
+        { updatedEvent },
         true
       )
     );
