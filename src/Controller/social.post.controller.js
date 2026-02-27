@@ -565,19 +565,21 @@ const getEventsById = asyncHandler(async (req, res, next) => {
   const limit = Math.min(parseInt(req.query.limit) || 10, 100);
   const skip = (page - 1) * limit;
 
-
   // Count total number of events
   const totalPosts = await Post.countDocuments({
     author: userId,
     postType: "event",
   });
 
+  const author = await user
+    .findById(userId)
+    .select("fullName email profilePicture creator_rating");
+
   // Fetch the actual posts (events)
   const myPosts = await Post.find({
     author: userId,
     postType: "event",
   })
-    .populate("author", "fullName email profilePicture")
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(limit);
@@ -614,7 +616,8 @@ const getEventsById = asyncHandler(async (req, res, next) => {
       200,
       "Events fetched successfully",
       {
-        myPosts: myPostsWithLikeStatus,
+        author,
+        allEvents: myPostsWithLikeStatus,
         pagination,
       },
       true
@@ -700,8 +703,6 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
     eventTime: { $gte: startOfDay, $lte: endOfDay },
   });
 
-  
-
   const events = await Post.find({
     postType: "event",
     eventTime: { $gte: startOfDay, $lte: endOfDay },
@@ -719,7 +720,7 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   const eventsWithIsSaved = events.map((event) => ({
     ...event.toObject(),
     isSaved: event.savedBy.includes(userId),
-  }));  
+  }));
 
   const pagination = {
     currentPage: page,
