@@ -1018,12 +1018,8 @@ const deleteDynamicPage = asyncHandler(async (req, res, next) => {
 const getDynamicPageBySlug = asyncHandler(async (req, res, next) => {
   const { slug } = req.params;
 
-  // Replace hyphens with spaces to match the title
-  const title = slug.replace(/-/g, " ");
-
-  // Find page by title (case-insensitive)
   const page = await dynamicPageModel.findOne({
-    pageTitle: new RegExp(`^${title}$`, "i"),
+    pageTitle: slug,
   });
 
   if (!page) {
