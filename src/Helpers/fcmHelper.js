@@ -1,5 +1,5 @@
 // helpers/fcmHelper.js
-const admin = require("firebase-admin");
+const admin = require("../../firebase")
 
 const sendFirebaseNotification = async (fcmToken, title, body, data = {}) => {
   if (!fcmToken) return;
