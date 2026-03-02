@@ -25,6 +25,7 @@ app.use(
       "http://localhost:5174",
       "https://itsjacks-dashboard.vercel.app",
       "https://incomparable-kulfi-37a4e3.netlify.app",
+      "https://dashboard.thefrappapp.com",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true,
