@@ -105,6 +105,7 @@ const createPost = asyncHandler(async (req, res, next) => {
 /**
  * @desc Like or Unlike post
  */
+
 const toggleLikePost = asyncHandler(async (req, res, next) => {
   const decodedData = await decodeSessionToken(req);
   if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
@@ -112,43 +113,47 @@ const toggleLikePost = asyncHandler(async (req, res, next) => {
   const { postId } = req.params;
   const userId = decodedData.userData.userId;
 
-  // Find the post by ID, populate the author's data
+  // Find the post and its author
   const post = await Post.findById(postId).populate("author");
   if (!post) return next(new apiError(404, "Post not found", null, false));
 
   const isLiked = post.likes.includes(userId);
-
   const likedUser = await user.findById(userId);
   if (!likedUser) return next(new apiError(404, "User not found", null, false));
 
-  // Get the post owner's ID to send the notification to
   const postOwnerId = post.author._id;
 
   if (isLiked) {
-    post.likes.pull(userId); // Remove the like
+    post.likes.pull(userId);
     post.likeCount -= 1;
   } else {
-    post.likes.push(userId); // Add the like
+    post.likes.push(userId);
     post.likeCount += 1;
 
-    // Create the like notification
-    const notification = new Notification({
-      user: postOwnerId,
-      message: `${likedUser.fullName} liked your post: ${post.description}`,
-      type: "like",
-      post: postId,
-    });
+    // Only notify if user is not liking their own post
+    if (postOwnerId.toString() !== userId.toString()) {
+      // Save notification in DB
+      const notification = new Notification({
+        user: postOwnerId,
+        message: `${likedUser.fullName} liked your post: "${post.description}"`,
+        type: "like",
+        post: postId,
+      });
+      await notification.save();
 
-    await notification.save();
-
-    // Emit the notification to the post owner via Socket.IO
-    if (req.io && req.io.users && req.io.users[postOwnerId]) {
-      const userSocketId = req.io.users[postOwnerId];
-      req.io.to(userSocketId).emit("notification", notification.message);
+      // Send push via Firebase
+      const postOwner = await user.findById(postOwnerId);
+      if (postOwner?.fcmToken) {
+        await sendFirebaseNotification(
+          postOwner.fcmToken,
+          "New Like!",
+          `${likedUser.fullName} liked your post.`,
+          { type: "like", postId }
+        );
+      }
     }
   }
 
-  // Save the updated post
   await post.save();
 
   return res
@@ -314,32 +319,30 @@ const rateEvent = asyncHandler(async (req, res, next) => {
   const { rating } = req.body;
   const { id } = req.params;
 
-  // Validate the rating input to allow decimal numbers between 1 and 5
+  // Validate rating
   if (!rating || isNaN(rating) || rating < 1 || rating > 5) {
     return next(
       new apiError(400, "Rating must be a number between 1 and 5", null, false)
     );
   }
 
-  // Decode session token to get the user ID
+  // Decode session token
   try {
     decodedData = await decodeSessionToken(req);
   } catch (error) {
-    return res.status(401).json(new apiError(401, "Unauthorized", null, false));
+    return next(new apiError(401, "Unauthorized", null, false));
   }
 
-  // Find the event (Post) by ID
-  const post = await Post.findById(id);
+  const userId = decodedData.userData.userId;
 
-  if (!post) {
+  // Find the event
+  const post = await Post.findById(id).populate("author");
+  if (!post)
     return next(new apiError(400, "No event found with this ID", null, false));
-  }
-
-  if (post.postType !== "event") {
+  if (post.postType !== "event")
     return next(
       new apiError(400, "Selected post is not an event.", null, false)
     );
-  }
 
   // Check if the event has started
   const now = new Date();
@@ -354,38 +357,34 @@ const rateEvent = asyncHandler(async (req, res, next) => {
     );
   }
 
-  // Check if the user has already rated the event
+  // Check if the user has already rated
   const existingRatingIndex = post.ratingInfo.findIndex(
-    (ratingObj) =>
-      ratingObj.user.toString() === decodedData.userData.userId.toString()
+    (r) => r.user.toString() === userId.toString()
   );
 
   if (existingRatingIndex > -1) {
     return next(
       new apiError(400, "You've already rated this event", null, false)
     );
-  } else {
-    // Add new rating
-    post.ratingInfo.push({
-      user: decodedData.userData.userId,
-      rating,
-    });
   }
 
-  // Recalculate the approximate rating (average) considering decimal values
+  // Add new rating
+  post.ratingInfo.push({ user: userId, rating });
+
+  // Recalculate average rating
   const totalRatings = post.ratingInfo.length;
   const sumRatings = post.ratingInfo.reduce(
-    (sum, ratingObj) => sum + parseFloat(ratingObj.rating), // Ensure we're using floating-point values
+    (sum, r) => sum + parseFloat(r.rating),
     0
   );
   post.approxRating = sumRatings / totalRatings;
 
-  // Save the updated post
+  // Save updated post
   await post.save();
 
-  // Create the rate event notification
+  // Create notification in DB
+  const User = await user.findById(userId); // user who rated
   const postOwnerId = post.author._id;
-  const User = await user.findById(decodedData.userData.userId);
 
   const notification = new Notification({
     user: postOwnerId,
@@ -396,13 +395,20 @@ const rateEvent = asyncHandler(async (req, res, next) => {
 
   await notification.save();
 
-  // Emit the notification to the post owner using Socket.IO
-  if (req.io && req.io.users && req.io.users[postOwnerId]) {
-    const userSocketId = req.io.users[postOwnerId];
-    req.io.to(userSocketId).emit("notification", notification.message);
+  // Send Firebase push notification
+  if (post.author.fcmToken) {
+    try {
+      await sendFirebaseNotification(
+        post.author.fcmToken,
+        "Event Rated",
+        `${User.fullName} rated your event "${post.description}" with a rating of ${rating}.`,
+        { type: "rating", postId: post._id }
+      );
+    } catch (err) {
+      console.error("Firebase notification error:", err);
+    }
   }
 
-  // Return success response
   return res
     .status(200)
     .json(new apiSuccess(200, "Rating added successfully", post, true));
@@ -627,23 +633,16 @@ const getEventsById = asyncHandler(async (req, res, next) => {
 
 // save event controller
 const saveEventTime = asyncHandler(async (req, res, next) => {
-  let decodedData;
-  try {
-    decodedData = await decodeSessionToken(req);
-  } catch (error) {
-    return next(new apiError(401, "Unauthorized", null, false));
-  }
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
 
   const { eventId } = req.params;
   const userId = decodedData.userData.userId;
 
-  const event = await Post.findById(eventId);
-  if (!event) {
-    return next(new apiError(404, "Event not found", null, false));
-  }
+  const event = await Post.findById(eventId).populate("author");
+  if (!event) return next(new apiError(404, "Event not found", null, false));
 
   const alreadySaved = event.savedBy.includes(userId);
-
   if (alreadySaved) {
     return res
       .status(200)
@@ -652,12 +651,35 @@ const saveEventTime = asyncHandler(async (req, res, next) => {
 
   const updatedEvent = await Post.findByIdAndUpdate(
     eventId,
-    {
-      $addToSet: { savedBy: userId },
-      $inc: { saveCount: 1 },
-    },
+    { $addToSet: { savedBy: userId }, $inc: { saveCount: 1 } },
     { new: true }
   );
+
+  // Notify event creator if it's not the same user
+  const eventOwnerId = event.author._id;
+  if (eventOwnerId.toString() !== userId.toString()) {
+    const savedUser = await user.findById(userId);
+
+    // Save notification
+    const notification = new Notification({
+      user: eventOwnerId,
+      message: `${savedUser.fullName} saved your event: "${event.description}"`,
+      type: "event-reminder",
+      post: eventId,
+    });
+    await notification.save();
+
+    // Send Firebase push
+    const eventOwner = await user.findById(eventOwnerId);
+    if (eventOwner?.fcmToken) {
+      await sendFirebaseNotification(
+        eventOwner.fcmToken,
+        "Event Saved!",
+        `${savedUser.fullName} saved your event.`,
+        { type: "event-reminder", postId: eventId }
+      );
+    }
+  }
 
   return res
     .status(200)

@@ -758,6 +758,44 @@ const getUserAllPost = asyncHandler(async (req, res, next) => {
   );
 });
 
+const saveFcmToken = asyncHandler(async (req, res, next) => {
+  const { fcmToken } = req.body;
+
+  if (!fcmToken) {
+    return next(new apiError(400, "FCM token is required", null, false));
+  }
+
+  // Decode the user's session token to get userId
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData) {
+    return next(new apiError(401, "Unauthorized", null, false));
+  }
+
+  const userId = decodedData.userData.userId;
+
+  // Update user's FCM token
+  const updatedUser = await user.findByIdAndUpdate(
+    userId,
+    { fcmToken },
+    { new: true }
+  );
+
+  if (!updatedUser) {
+    return next(new apiError(404, "User not found", null, false));
+  }
+
+  return res
+    .status(200)
+    .json(
+      new apiSuccess(
+        200,
+        "FCM token saved successfully",
+        { fcmToken: updatedUser.fcmToken },
+        true
+      )
+    );
+});
+
 module.exports = {
   registerUserController,
   loginUserController,
@@ -773,4 +811,5 @@ module.exports = {
   resendOtp,
   getSingleuser,
   getUserAllPost,
+  saveFcmToken,
 };

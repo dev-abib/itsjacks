@@ -14,10 +14,10 @@ const {
   verifyAccount,
   resendOtp,
   getSingleuser,
+  saveFcmToken,
 } = require("../../Controller/user.controller");
 const { uploadImages } = require("../../middleware/multer.middleware");
 const { authguard } = require("../../middleware/authGuard");
-
 
 // extracting router from express
 const { Router } = express;
@@ -62,6 +62,7 @@ router.route("/delete-acc").delete(authguard, deleteUserAccount);
 // log out account
 router.route("/log-out").post(authguard, logoutUser);
 
-
+// save fcm token
+router.route("/save-fcm-token").post(authguard, saveFcmToken);
 
 module.exports = router;
