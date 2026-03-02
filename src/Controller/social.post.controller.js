@@ -11,6 +11,7 @@ const {
 const { ObjectId } = require("mongodb");
 const { Notification } = require("../Schema/notification.schema");
 const { report } = require("../Schema/report.post.schem");
+const { sendFirebaseNotification } = require("../Helpers/fcmHelper");
 
 /**
  * @desc Create new post
