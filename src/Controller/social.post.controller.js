@@ -571,6 +571,9 @@ const getMyEvents = asyncHandler(async (req, res, next) => {
 const getEventsById = asyncHandler(async (req, res, next) => {
   const { userId } = req.params;
 
+  const decodedData = await decodeSessionToken(req);
+  const currentUserId = decodedData.userData.userId;
+
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const limit = Math.min(parseInt(req.query.limit) || 10, 100);
   const skip = (page - 1) * limit;
@@ -579,6 +582,7 @@ const getEventsById = asyncHandler(async (req, res, next) => {
   const totalPosts = await Post.countDocuments({
     author: userId,
     postType: "event",
+    isPostBlock: { $nin: [currentUserId] },
   });
 
   const author = await user
@@ -589,6 +593,7 @@ const getEventsById = asyncHandler(async (req, res, next) => {
   const myPosts = await Post.find({
     author: userId,
     postType: "event",
+    isPostBlock: { $nin: [currentUserId] },
   })
     .sort({ createdAt: -1 })
     .skip(skip)
