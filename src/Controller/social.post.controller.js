@@ -433,7 +433,10 @@ const getEvents = asyncHandler(async (req, res, next) => {
   const now = new Date();
 
   // Base filter for events
-  let filter = { postType: "event" };
+  let filter = {
+    postType: "event",
+    isPostBlock: { $nin: [userId] },
+  };
 
   // Filter by old/upcoming events
   if (isOld === "true") {
@@ -1094,6 +1097,44 @@ const reportPostController = asyncHandler(async (req, res, next) => {
     .json(new apiSuccess(200, "Report submitted successfully", null, true));
 });
 
+/**
+ * @desc Like or Unlike post
+ */
+
+const blockPost = asyncHandler(async (req, res, next) => {
+  const decodedData = await decodeSessionToken(req);
+  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
+
+  const { postId } = req.params;
+  const userId = decodedData.userData.userId;
+
+  // Find the post and its author
+  const post = await Post.findById(postId).populate("author");
+  if (!post) return next(new apiError(404, "Post not found", null, false));
+
+  const isBlock = post.isPostBlock.some((id) => id.toString() === userId);
+  const blockUser = await user.findById(userId);
+  if (!blockUser) return next(new apiError(404, "User not found", null, false));
+
+  if (post.author._id.toString() === userId) {
+    return next(
+      new apiError(400, "You cannot block your own post", null, false)
+    );
+  }
+
+  if (isBlock) {
+    return next(new apiError(400, "Post Already Blocked", null, false));
+  } else {
+    post.isPostBlock.push(userId);
+  }
+
+  await post.save();
+
+  return res
+    .status(200)
+    .json(new apiSuccess(200, "Post Block Successful", true));
+});
+
 module.exports = {
   createPost,
   toggleLikePost,
@@ -1112,4 +1153,5 @@ module.exports = {
   removeSavedEvent,
   reportPostController,
   getEventsById,
+  blockPost,
 };

@@ -20,6 +20,7 @@ const {
   removeSavedEvent,
   reportPostController,
   getEventsById,
+  blockPost,
 } = require("../../Controller/social.post.controller");
 
 const router = express.Router();
@@ -79,5 +80,8 @@ router
   .delete(authguard, removeSavedEvent);
 
 router.route("/report-post/:postId").post(authguard, reportPostController);
+
+// Block Post By User
+router.route("/:postId/block").put(authguard, blockPost);
 
 module.exports = router;

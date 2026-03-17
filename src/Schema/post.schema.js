@@ -73,6 +73,12 @@ const postSchema = new mongoose.Schema(
       enum: ["greek life", "local business", "student clubs", "sport"],
       required: [true, "Post category is required"],
     },
+    isPostBlock: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "user",
+      },
+    ],
   },
   { timestamps: true }
 );
