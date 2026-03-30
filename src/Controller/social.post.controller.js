@@ -984,30 +984,78 @@ const getNotification = asyncHandler(async (req, res, next) => {
 // get single posts
 const getSinglePost = asyncHandler(async (req, res, next) => {
   const { postId } = req.params;
+
   const decodedData = await decodeSessionToken(req);
 
-  if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
+  if (!decodedData) {
+    const appScheme = `https://backend.thefrappapp.com/V1/0.0/details?id=${postId}`;
+    const appStoreUrl =
+      "https://apps.apple.com/us/app/frapp-discover-connect-grow/id6759274038";
 
-  const { userId } = decodedData.userData;
+    return res.status(200).send(`
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Open App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  // Find the post by postId and populate the author field with the user data
+  <!-- Auto redirect attempt -->
+  <meta http-equiv="refresh" content="1; url=${appScheme}">
+</head>
+
+<body style="font-family: Arial; text-align:center; padding-top:50px;">
+
+  <h3>Opening app...</h3>
+
+  <p>If nothing happens, click below:</p>
+
+  <a href="${appScheme}" style="
+    display:inline-block;
+    margin-top:20px;
+    padding:12px 20px;
+    background:#007bff;
+    color:white;
+    text-decoration:none;
+    border-radius:8px;
+  ">
+    Open App
+  </a>
+
+  <br/><br/>
+
+  <a href="${appStoreUrl}" style="
+    display:inline-block;
+    padding:10px 18px;
+    background:#000;
+    color:white;
+    text-decoration:none;
+    border-radius:8px;
+  ">
+    Download App
+  </a>
+
+   </body>
+  </html>
+    `);
+  }
+
   const isExistedPost = await Post.findById(postId).populate(
     "author",
     "fullName email role profilePicture creator_rating"
   );
 
-  // If post doesn't exist, return an error
   if (!isExistedPost) {
     return next(new apiError(404, "Post doesn't exist", null, false));
   }
 
-  // Check if the post has been liked by the user
+  const { userId } = decodedData.userData;
+
   const likedByUser = isExistedPost.likes.includes(userId);
+
   const isRated = isExistedPost.ratingInfo.some(
     (rating) => rating.user.toString() === userId.toString()
   );
 
-  // Add the isLiked status to the post data
   const postWithLikeStatus = {
     ...isExistedPost.toObject(),
     isLiked: likedByUser,

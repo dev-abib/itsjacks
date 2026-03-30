@@ -72,7 +72,7 @@ router
 router.route("/get-notifications").get(authguard, getNotification);
 
 // get single post
-router.route("/single-post/:postId").get(authguard, getSinglePost);
+router.route("/single-post/:postId").get(getSinglePost);
 
 // remove saved event time
 router
