@@ -988,7 +988,7 @@ const getSinglePost = asyncHandler(async (req, res, next) => {
   const decodedData = await decodeSessionToken(req);
 
   if (!decodedData) {
-    const appScheme = `https://backend.thefrappapp.com/V1/0.0/details?id=${postId}`;
+    const appScheme = `frapp://${postId}`;
     const appStoreUrl =
       "https://apps.apple.com/us/app/frapp-discover-connect-grow/id6759274038";
 
