@@ -1,14 +1,13 @@
 const cron = require("node-cron");
-const mongoose = require("mongoose");
 const { Post } = require("../Schema/post.schema");
 const { user } = require("../Schema/user.schema");
 const { sendFirebaseNotification } = require("./fcmHelper");
 const { Notification } = require("../Schema/notification.schema");
 
-
-// This function runs every minute to check upcoming events
 cron.schedule("* * * * *", async () => {
   try {
+    console.log("Cron running at:", new Date().toISOString());
+
     const now = new Date();
 
     const reminders = [
@@ -20,18 +19,19 @@ cron.schedule("* * * * *", async () => {
     for (const reminder of reminders) {
       const targetTime = new Date(now.getTime() + reminder.offset);
 
-      // Find events that are starting at targetTime and the reminder hasn't been sent
+      const windowStart = new Date(targetTime.getTime() - 5 * 60 * 1000);
+      const windowEnd = new Date(targetTime.getTime() + 5 * 60 * 1000);
+
       const events = await Post.find({
         postType: "event",
         eventTime: {
-          $gte: new Date(targetTime.getTime() - 60000), 
-          $lte: new Date(targetTime.getTime() + 60000),
+          $gte: windowStart,
+          $lte: windowEnd,
         },
       }).populate("savedBy");
 
       for (const event of events) {
         for (const savedUser of event.savedBy) {
-          // Check if we've already sent this reminder for this user
           const alreadySent = await Notification.findOne({
             user: savedUser._id,
             post: event._id,
@@ -40,7 +40,6 @@ cron.schedule("* * * * *", async () => {
 
           if (alreadySent) continue;
 
-          // Create notification in DB
           const notification = new Notification({
             user: savedUser._id,
             message: `Reminder: Event "${event.description}" starts in ${reminder.label}`,
@@ -51,8 +50,10 @@ cron.schedule("* * * * *", async () => {
 
           await notification.save();
 
-          // Send push via Firebase
           const savedUserData = await user.findById(savedUser._id);
+
+          console.log("Sending to:", savedUserData?.fcmToken);
+
           if (savedUserData?.fcmToken) {
             await sendFirebaseNotification(
               savedUserData.fcmToken,
@@ -65,6 +66,8 @@ cron.schedule("* * * * *", async () => {
       }
     }
   } catch (err) {
-    console.error("Error in event reminder cron job:", err);
+    console.error("Error in cron:", err);
   }
 });
+
+

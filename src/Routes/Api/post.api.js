@@ -30,8 +30,8 @@ router
   .route("/create-post")
   .post(authguard, uploadImages.array("images", 5), createPost);
 
-// Create post (multiple images allowed)
-router.route("/delete-post/:postId").delete(authguard, deletePostEvent);
+// Delete post (multiple images allowed)
+router.route("/delete-post-cl/:postId").delete(authguard, deletePostEvent);
 
 // Like / Unlike post
 router.route("/:postId/like-unlike").put(authguard, toggleLikePost);
