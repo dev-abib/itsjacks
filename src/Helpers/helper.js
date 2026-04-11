@@ -46,7 +46,8 @@ const createSessionToken = async (userData) => {
     return jwt.sign(
       { userData },
       secretKey,
-      { expiresIn: process.env.EXPIRES_IN } 
+      { expiresIn: "365d" }
+      // { expiresIn: process.env.EXPIRES_IN }
     );
   } catch (error) {
     console.error("Error generating session token:", error);
