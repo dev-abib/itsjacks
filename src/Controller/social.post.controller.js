@@ -1,3 +1,7 @@
+// external dependencies
+const { DateTime } = require("luxon");
+
+// Internal dependencies
 const { Post } = require("../Schema/post.schema");
 const { user } = require("../Schema/user.schema");
 const { asyncHandler } = require("../Utils/asyncHandler");
@@ -703,8 +707,10 @@ const saveEventTime = asyncHandler(async (req, res, next) => {
 });
 
 // get my saved event time controller
+
 const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   let decodedData;
+
   try {
     decodedData = await decodeSessionToken(req);
   } catch (error) {
@@ -718,26 +724,37 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
     return next(new apiError(400, "Please provide a date", null, false));
   }
 
+  // Pagination
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const limit = Math.min(parseInt(req.query.limit) || 10, 100);
   const skip = (page - 1) * limit;
 
-  const startOfDay = new Date(date);
-  startOfDay.setHours(0, 0, 0, 0);
+  let startOfDayUTC, endOfDayUTC;
 
-  const endOfDay = new Date(date);
-  endOfDay.setHours(23, 59, 59, 999);
+  try {
+    const pstDate = DateTime.fromISO(date, {
+      zone: "America/Los_Angeles",
+      setZone: true,
+    });
 
-  // Fetch all events on this date (don't filter by savedBy)
-  const totalPosts = await Post.countDocuments({
+    if (!pstDate.isValid) {
+      return next(new apiError(400, "Invalid date format", null, false));
+    }
+
+    startOfDayUTC = pstDate.startOf("day").toUTC().toJSDate();
+    endOfDayUTC = pstDate.endOf("day").toUTC().toJSDate();
+  } catch (err) {
+    return next(new apiError(400, "Error processing date", null, false));
+  }
+
+  const query = {
     postType: "event",
-    eventTime: { $gte: startOfDay, $lte: endOfDay },
-  });
+    eventTime: { $gte: startOfDayUTC, $lte: endOfDayUTC },
+  };
 
-  const events = await Post.find({
-    postType: "event",
-    eventTime: { $gte: startOfDay, $lte: endOfDay },
-  })
+  const totalPosts = await Post.countDocuments(query);
+
+  const events = await Post.find(query)
     .populate("author", "fullName email profilePicture")
     .sort({ createdAt: -1 })
     .skip(skip)
@@ -747,11 +764,11 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
     return next(new apiError(404, "No events found on this date", null, false));
   }
 
-  // Add isSaved property based on whether user has saved the event
-  const eventsWithIsSaved = events.map((event) => ({
-    ...event.toObject(),
-    isSaved: event.savedBy.includes(userId),
-  }));
+    const eventsWithIsSaved = events.map((event) => ({
+      ...event.toObject(),
+      isSaved: event.savedBy.includes(userId),
+    }));
+
 
   const pagination = {
     currentPage: page,
@@ -764,16 +781,17 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
     prevPage: page > 1 ? page - 1 : null,
   };
 
-  res
-    .status(200)
-    .json(
-      new apiSuccess(
-        200,
-        "Events retrieved successfully",
-        { events: eventsWithIsSaved, pagination },
-        true
-      )
-    );
+  return res.status(200).json(
+    new apiSuccess(
+      200,
+      "Events retrieved successfully",
+      {
+        events: eventsWithIsSaved,
+        pagination,
+      },
+      true
+    )
+  );
 });
 
 // delete post / event
