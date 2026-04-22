@@ -711,7 +711,7 @@ const saveEventTime = asyncHandler(async (req, res, next) => {
 const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   let decodedData;
 
-  const decodedData = await decodeSessionToken(req);
+   decodedData = await decodeSessionToken(req);
   if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
 
   const userId = decodedData.userData.userId;
