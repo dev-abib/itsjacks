@@ -9,7 +9,11 @@ cron.schedule(
   "* * * * *",
   async () => {
     try {
-      console.log("Cron running:", new Date().toISOString());
+      console.log("Now UTC:", new Date().toISOString());
+      console.log(
+        "Now PST:",
+        DateTime.now().setZone("America/Los_Angeles").toISO()
+      );
 
       const nowUTC = new Date();
       const nowPST = DateTime.fromJSDate(nowUTC).setZone("America/Los_Angeles");
@@ -22,9 +26,21 @@ cron.schedule(
       // =========================
       // 🔹 RELATIVE REMINDERS
       // =========================
-      const allEvents = await Post.find({ postType: "event" }).populate(
-        "savedBy"
+
+      const reminderWindowStart = new Date(
+        nowUTC.getTime() + reminders[reminders.length - 1].ms - 5 * 60 * 1000
       );
+      const reminderWindowEnd = new Date(
+        nowUTC.getTime() + reminders[0].ms + 5 * 60 * 1000
+      );
+
+      const allEvents = await Post.find({
+        postType: "event",
+        eventTime: {
+          $gte: reminderWindowStart,
+          $lte: reminderWindowEnd,
+        },
+      }).populate("savedBy");
 
       for (const event of allEvents) {
         const eventTime = new Date(event.eventTime);
@@ -74,15 +90,19 @@ cron.schedule(
       // =========================
       // 🔹 8 AM PST DAILY REMINDER
       // =========================
-      if (nowPST.hour === 8) {
+      if (nowPST.hour === 8 && nowPST.minute === 0) {
         const startOfDayUTC = nowPST.startOf("day").toUTC().toJSDate();
-        const endOfDayUTC = nowPST.endOf("day").toUTC().toJSDate();
+        const endOfDayUTC = nowPST
+          .plus({ days: 1 })
+          .startOf("day")
+          .toUTC()
+          .toJSDate();
 
         const todaysEvents = await Post.find({
           postType: "event",
           eventTime: {
             $gte: startOfDayUTC,
-            $lte: endOfDayUTC,
+            $lt: endOfDayUTC,
           },
         }).populate("savedBy");
 
@@ -98,7 +118,7 @@ cron.schedule(
 
             await Notification.create({
               user: savedUser._id,
-              message: `Reminder: Today's event "${event.description}" is happening`,
+              message: `Reminder: Today's event "${event.description}" is happening today!`,
               type: "event-reminder-8am",
               post: event._id,
               reminderSent: true,
@@ -109,8 +129,8 @@ cron.schedule(
             if (savedUserData?.fcmToken) {
               await sendFirebaseNotification(
                 savedUserData.fcmToken,
-                "Today's Events",
-                `You have an event today: "${event.description}" in ${reminder.label}`,
+                "Today's Events 🎉",
+                `You have a saved event today: "${event.description}"`,
                 {
                   type: "event-reminder",
                   postId: event._id.toString(),

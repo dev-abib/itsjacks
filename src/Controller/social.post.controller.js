@@ -711,20 +711,18 @@ const saveEventTime = asyncHandler(async (req, res, next) => {
 const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   let decodedData;
 
-  try {
-    decodedData = await decodeSessionToken(req);
-  } catch (error) {
-    return next(new apiError(401, "Unauthorized", null, false));
-  }
+  decodedData = await decodeSessionToken(req);
+
+   return next(new apiError(401, "Unauthorized", null, false));
 
   const userId = decodedData.userData.userId;
   const { date } = req.body;
 
-  if (!date) {
-    return next(new apiError(400, "Please provide a date", null, false));
+
+  if (!date || typeof date !== "string") {
+    return next(new apiError(400, "Please provide a valid date", null, false));
   }
 
-  // Pagination
   const page = Math.max(parseInt(req.query.page) || 1, 1);
   const limit = Math.min(parseInt(req.query.limit) || 10, 100);
   const skip = (page - 1) * limit;
@@ -734,7 +732,6 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   try {
     const pstDate = DateTime.fromISO(date, {
       zone: "America/Los_Angeles",
-      setZone: true,
     });
 
     if (!pstDate.isValid) {
@@ -742,14 +739,19 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
     }
 
     startOfDayUTC = pstDate.startOf("day").toUTC().toJSDate();
-    endOfDayUTC = pstDate.endOf("day").toUTC().toJSDate();
+
+    endOfDayUTC = pstDate.plus({ days: 1 }).startOf("day").toUTC().toJSDate();
   } catch (err) {
     return next(new apiError(400, "Error processing date", null, false));
   }
 
   const query = {
     postType: "event",
-    eventTime: { $gte: startOfDayUTC, $lte: endOfDayUTC },
+    savedBy: userId,
+    eventTime: {
+      $gte: startOfDayUTC,
+      $lt: endOfDayUTC,
+    },
   };
 
   const totalPosts = await Post.countDocuments(query);
@@ -761,14 +763,15 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
     .limit(limit);
 
   if (!events.length) {
-    return next(new apiError(404, "No events found on this date", null, false));
+    return next(
+      new apiError(404, "No saved events found on this date", null, false)
+    );
   }
 
-    const eventsWithIsSaved = events.map((event) => ({
-      ...event.toObject(),
-      isSaved: event.savedBy.includes(userId),
-    }));
-
+  const eventsWithIsSaved = events.map((event) => ({
+    ...event.toObject(),
+    isSaved: true,
+  }));
 
   const pagination = {
     currentPage: page,
@@ -784,7 +787,7 @@ const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   return res.status(200).json(
     new apiSuccess(
       200,
-      "Events retrieved successfully",
+      "Saved events retrieved successfully",
       {
         events: eventsWithIsSaved,
         pagination,
