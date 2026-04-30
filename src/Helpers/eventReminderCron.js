@@ -5,53 +5,50 @@ const { user } = require("../Schema/user.schema");
 const { sendFirebaseNotification } = require("./fcmHelper");
 const { Notification } = require("../Schema/notification.schema");
 
+// Store last run time (fallback protection)
+let lastRunTime = new Date();
+
 cron.schedule(
   "* * * * *",
   async () => {
     try {
-      console.log("Now UTC:", new Date().toISOString());
-      console.log(
-        "Now PST:",
-        DateTime.now().setZone("America/Los_Angeles").toISO()
-      );
-
       const nowUTC = new Date();
-      const nowPST = DateTime.fromJSDate(nowUTC).setZone("America/Los_Angeles");
+      console.log("Cron running at:", nowUTC.toISOString());
+
+      // fallback window (in case cron was delayed)
+      const safeStart = new Date(lastRunTime.getTime() - 15 * 60 * 1000);
+      const safeEnd = new Date(nowUTC.getTime() + 15 * 60 * 1000);
+
+      lastRunTime = nowUTC;
 
       const reminders = [
         { label: "1 day", ms: 24 * 60 * 60 * 1000 },
         { label: "1 hour", ms: 60 * 60 * 1000 },
       ];
 
-      // =========================
-      // 🔹 RELATIVE REMINDERS
-      // =========================
-
-      const reminderWindowStart = new Date(
-        nowUTC.getTime() + reminders[reminders.length - 1].ms - 5 * 60 * 1000
-      );
-      const reminderWindowEnd = new Date(
-        nowUTC.getTime() + reminders[0].ms + 5 * 60 * 1000
-      );
-
-      const allEvents = await Post.find({
+      // Fetch events in safe range
+      const events = await Post.find({
         postType: "event",
         eventTime: {
-          $gte: reminderWindowStart,
-          $lte: reminderWindowEnd,
+          $gte: new Date(safeStart.getTime() + reminders[1].ms),
+          $lte: new Date(safeEnd.getTime() + reminders[0].ms),
         },
       }).populate("savedBy");
 
-      for (const event of allEvents) {
+      for (const event of events) {
         const eventTime = new Date(event.eventTime);
 
         for (const reminder of reminders) {
           const targetTime = new Date(eventTime.getTime() - reminder.ms);
 
-          const windowStart = new Date(targetTime.getTime() - 5 * 60 * 1000);
-          const windowEnd = new Date(targetTime.getTime() + 5 * 60 * 1000);
+          // robust check (no strict window dependency)
+          const isDue = targetTime >= safeStart && targetTime <= safeEnd;
 
-          if (nowUTC < windowStart || nowUTC > windowEnd) continue;
+          if (!isDue) continue;
+
+          console.log(
+            `Reminder triggered: ${reminder.label} for event ${event._id}`
+          );
 
           for (const savedUser of event.savedBy) {
             const exists = await Notification.findOne({
@@ -88,9 +85,13 @@ cron.schedule(
       }
 
       // =========================
-      // 🔹 8 AM PST DAILY REMINDER
+      // 🔹 8 AM PST DAILY REMINDER (FIXED)
       // =========================
-      if (nowPST.hour === 8 && nowPST.minute === 0) {
+      const nowPST = DateTime.fromJSDate(nowUTC).setZone("America/Los_Angeles");
+
+      if (nowPST.hour === 8 && nowPST.minute < 2) {
+        console.log("Running 8AM PST job");
+
         const startOfDayUTC = nowPST.startOf("day").toUTC().toJSDate();
         const endOfDayUTC = nowPST
           .plus({ days: 1 })
