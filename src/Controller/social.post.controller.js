@@ -711,12 +711,11 @@ const saveEventTime = asyncHandler(async (req, res, next) => {
 const getMySavedEventTime = asyncHandler(async (req, res, next) => {
   let decodedData;
 
-   decodedData = await decodeSessionToken(req);
+  decodedData = await decodeSessionToken(req);
   if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
 
   const userId = decodedData.userData.userId;
   const { date } = req.body;
-
 
   if (!date || typeof date !== "string") {
     return next(new apiError(400, "Please provide a valid date", null, false));
@@ -1173,7 +1172,6 @@ const reportPostController = asyncHandler(async (req, res, next) => {
 /**
  * @desc Like or Unlike post
  */
-
 const blockPost = asyncHandler(async (req, res, next) => {
   const decodedData = await decodeSessionToken(req);
   if (!decodedData) return next(new apiError(401, "Unauthorized", null, false));
@@ -1207,6 +1205,7 @@ const blockPost = asyncHandler(async (req, res, next) => {
     .status(200)
     .json(new apiSuccess(200, "Post Block Successful", true));
 });
+
 
 module.exports = {
   createPost,
